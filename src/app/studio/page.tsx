@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { WindowChromeBar } from "@/components/Doodles";
 import { ResumeEditor } from "@/components/ResumeEditor";
 import { ResumePreview } from "@/components/ResumePreview";
 import { EMPTY_RESUME_DATA, type ResumeData, type ResumeVersion } from "@/types/resume";
@@ -143,7 +144,7 @@ function StudioWorkspace() {
         if (json.pageTitle && !customTitle) {
           setCustomTitle(json.pageTitle.slice(0, 80));
         }
-        setFetchHint("Job description extracted! Review it below and click Tailor Resume.");
+        setFetchHint("Job description extracted! Review below and click Tailor Resume.");
       } else {
         setFetchHint(
           json.reason ||
@@ -224,13 +225,16 @@ function StudioWorkspace() {
     <div className="space-y-5 print-container">
       {/* Top Action Bar */}
       <div className="no-print space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#E4E4E7] pb-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+            <span className="font-mono-label text-[11px] font-semibold uppercase tracking-wider text-[#0D9488]">
+              Step 03 · Build & Tailor
+            </span>
+            <h1 className="text-3xl font-extrabold text-[#111827] tracking-tight mt-0.5">
               Resume Studio
             </h1>
-            <p className="text-sm text-slate-600 mt-0.5">
-              Synthesize your Base Resume + Work Data Pool into a master resume or tailor it to a specific job.
+            <p className="text-sm text-[#4B5563] mt-1">
+              Merge your base resume + work pool into a fresh master resume, or tailor it to a specific role — strictly grounded in what you actually did.
             </p>
           </div>
 
@@ -239,7 +243,7 @@ function StudioWorkspace() {
               type="button"
               onClick={handleGenerateMaster}
               disabled={generating || tailoring}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 shadow-xs"
+              className="ph-btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50"
             >
               {generating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -252,9 +256,9 @@ function StudioWorkspace() {
             <button
               type="button"
               onClick={() => setTailorOpen((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50"
+              className="ph-btn-secondary inline-flex items-center gap-1.5 px-3.5 py-2 text-sm"
             >
-              <Target className="w-4 h-4 text-indigo-600" />
+              <Target className="w-4 h-4 text-[#0D9488]" />
               Tailor to Job
               {tailorOpen ? (
                 <ChevronUp className="w-4 h-4" />
@@ -267,106 +271,107 @@ function StudioWorkspace() {
 
         {/* Tailor Panel */}
         {tailorOpen && (
-          <form
-            onSubmit={handleTailor}
-            className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3.5"
-          >
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-              <div className="lg:col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Job Posting URL (best-effort fetch, paste fallback supported)
-                </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <LinkIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="url"
-                      value={jobUrl}
-                      onChange={(e) => setJobUrl(e.target.value)}
-                      placeholder="https://boards.greenhouse.io/..."
-                      className="w-full rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
+          <form onSubmit={handleTailor} className="ph-card overflow-hidden">
+            <WindowChromeBar filename="job-tailor.exe — target a posting" />
+
+            <div className="p-4 sm:p-5 space-y-3.5">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div className="lg:col-span-2">
+                  <label className="block text-xs font-bold text-[#4B5563] mb-1">
+                    Job Posting URL (best-effort fetch, paste fallback ready)
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <LinkIcon className="w-4 h-4 text-[#6B7280] absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="url"
+                        value={jobUrl}
+                        onChange={(e) => setJobUrl(e.target.value)}
+                        placeholder="https://boards.greenhouse.io/..."
+                        className="ph-input pl-9 pr-3 py-2 text-sm"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleFetchJobUrl}
+                      disabled={fetchingUrl || !jobUrl.trim()}
+                      className="ph-btn-secondary px-3.5 py-2 text-sm disabled:opacity-50"
+                    >
+                      {fetchingUrl ? "Fetching..." : "Fetch JD"}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleFetchJobUrl}
-                    disabled={fetchingUrl || !jobUrl.trim()}
-                    className="px-3.5 py-2 rounded-lg text-sm font-medium bg-slate-100 text-slate-800 hover:bg-slate-200 disabled:opacity-50"
-                  >
-                    {fetchingUrl ? "Fetching..." : "Fetch JD"}
-                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[#4B5563] mb-1">
+                    Version Label (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={customTitle}
+                    onChange={(e) => setCustomTitle(e.target.value)}
+                    placeholder="e.g. Stripe — Staff Engineer"
+                    className="ph-input px-3 py-2 text-sm"
+                  />
                 </div>
               </div>
 
+              {fetchHint && (
+                <div className="flex items-start gap-2 text-xs font-medium text-[#B45309] bg-[#FFFBEB] border border-[#FDE68A] rounded-lg px-3 py-2">
+                  <Info className="w-4 h-4 shrink-0 text-[#D97706] mt-0.5" />
+                  <span>{fetchHint}</span>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Version Label (optional)
+                <label className="block text-xs font-bold text-[#4B5563] mb-1">
+                  Job Description
                 </label>
-                <input
-                  type="text"
-                  value={customTitle}
-                  onChange={(e) => setCustomTitle(e.target.value)}
-                  placeholder="e.g. Stripe — Staff Engineer"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                <textarea
+                  ref={jdTextareaRef}
+                  rows={4}
+                  value={jobDescription}
+                  onChange={(e) => setJobDescription(e.target.value)}
+                  placeholder="Fetched job description lands here, or paste the full posting text directly..."
+                  className="ph-input px-3.5 py-2 text-sm"
                 />
               </div>
-            </div>
 
-            {fetchHint && (
-              <div className="flex items-start gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                <Info className="w-4 h-4 shrink-0 text-amber-600 mt-0.5" />
-                <span>{fetchHint}</span>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <span className="font-mono-label text-[11px] text-[#6B7280]">
+                  no hallucinated skills · gaps shown openly
+                </span>
+                <button
+                  type="submit"
+                  disabled={tailoring || generating || !jobDescription.trim()}
+                  className="ph-btn-dark inline-flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50"
+                >
+                  {tailoring ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Tailoring Resume...
+                    </>
+                  ) : (
+                    <>
+                      <Target className="w-4 h-4 text-[#5EEAD4]" />
+                      Tailor Resume to Job
+                    </>
+                  )}
+                </button>
               </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Job Description
-              </label>
-              <textarea
-                ref={jdTextareaRef}
-                rows={4}
-                value={jobDescription}
-                onChange={(e) => setJobDescription(e.target.value)}
-                placeholder="Fetched job description will appear here, or paste the full job posting text directly..."
-                className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-xs text-slate-500">
-                Fact-grounded: Gemini only uses facts from your Base Resume & Work Data Pool.
-              </span>
-              <button
-                type="submit"
-                disabled={tailoring || generating || !jobDescription.trim()}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50"
-              >
-                {tailoring ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Tailoring Resume...
-                  </>
-                ) : (
-                  <>
-                    <Target className="w-4 h-4" />
-                    Tailor Resume to Job
-                  </>
-                )}
-              </button>
             </div>
           </form>
         )}
 
         {statusMessage && (
-          <div className="flex items-center gap-2 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+          <div className="flex items-center gap-2 text-sm font-medium text-[#047857] bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg px-4 py-3">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{statusMessage}</span>
           </div>
         )}
         {errorMessage && (
-          <div className="flex items-center gap-2 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-            <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+          <div className="flex items-center gap-2 text-sm font-medium text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-4 py-3">
+            <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
@@ -374,22 +379,37 @@ function StudioWorkspace() {
 
       {/* Split Workspace */}
       {loadingInitial ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-sm text-slate-500">
-          Loading studio...
+        <div className="ph-card-soft p-10 text-center font-mono-label text-sm text-[#6B7280]">
+          loading studio...
         </div>
       ) : (
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start print-container">
           {/* Left Pane: Insights & Editor */}
           <div className="no-print xl:col-span-5 space-y-4">
             {activeVersion && (
-              <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
+              <div className="ph-card overflow-hidden">
+                <WindowChromeBar
+                  filename={`match-report · ${activeVersion.kind}`}
+                  rightSlot={
+                    <button
+                      type="button"
+                      onClick={handleSaveVersionEdits}
+                      disabled={savingVersion || !dirty}
+                      className="ph-btn-primary inline-flex items-center gap-1 px-2.5 py-1 text-[11px] disabled:opacity-45"
+                    >
+                      <Save className="w-3 h-3" />
+                      {savingVersion ? "Saving..." : dirty ? "Save Edits" : "Saved"}
+                    </button>
+                  }
+                />
+
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${
+                      className={`font-mono-label px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
                         activeVersion.kind === "tailored"
-                          ? "bg-indigo-100 text-indigo-800"
-                          : "bg-emerald-100 text-emerald-800"
+                          ? "bg-[#CCFBF1] border-[#99F6E4] text-[#0F766E]"
+                          : "bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]"
                       }`}
                     >
                       {activeVersion.kind}
@@ -401,80 +421,71 @@ function StudioWorkspace() {
                         setDraftTitle(e.target.value);
                         setDirty(true);
                       }}
-                      className="font-semibold text-sm text-slate-900 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 focus:outline-none flex-1 min-w-0"
+                      className="font-bold text-sm text-[#111827] bg-transparent border-b border-transparent hover:border-[#D4D4D8] focus:border-[#0D9488] focus:outline-none flex-1 min-w-0"
                     />
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleSaveVersionEdits}
-                    disabled={savingVersion || !dirty}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    {savingVersion ? "Saving..." : dirty ? "Save Edits" : "Saved"}
-                  </button>
-                </div>
 
-                {activeVersion.analysis && (
-                  <div className="space-y-2.5 pt-2 border-t border-slate-100 text-xs">
-                    <div className="text-slate-600">
-                      Incorporated{" "}
-                      <span className="font-semibold text-slate-900">
-                        {activeVersion.usedPoolIds.length}
-                      </span>{" "}
-                      work pool entries.
+                  {activeVersion.analysis && (
+                    <div className="space-y-2.5 pt-2 border-t border-[#E4E4E7] text-xs">
+                      <div className="font-mono-label text-[#4B5563]">
+                        incorporated{" "}
+                        <span className="font-bold text-[#111827]">
+                          {activeVersion.usedPoolIds.length}
+                        </span>{" "}
+                        work pool entries
+                      </div>
+
+                      {activeVersion.analysis.matchedKeywords.length > 0 && (
+                        <div>
+                          <div className="font-bold text-[#047857] mb-1">
+                            Matched Keywords
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {activeVersion.analysis.matchedKeywords.map((kw, i) => (
+                              <span
+                                key={i}
+                                className="font-mono-label px-2 py-0.5 rounded bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0]"
+                              >
+                                {kw}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {activeVersion.analysis.missingKeywords.length > 0 && (
+                        <div>
+                          <div className="font-bold text-[#B45309] mb-1">
+                            Gaps (Not Evidenced in Pool)
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {activeVersion.analysis.missingKeywords.map((kw, i) => (
+                              <span
+                                key={i}
+                                className="font-mono-label px-2 py-0.5 rounded bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]"
+                              >
+                                {kw}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {activeVersion.analysis.tailoringNotes.length > 0 && (
+                        <div>
+                          <div className="font-bold text-[#111827] mb-1">
+                            AI Notes & Reminders
+                          </div>
+                          <ul className="list-disc pl-4 space-y-0.5 text-[#4B5563]">
+                            {activeVersion.analysis.tailoringNotes.map((note, i) => (
+                              <li key={i}>{note}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
-
-                    {activeVersion.analysis.matchedKeywords.length > 0 && (
-                      <div>
-                        <div className="font-semibold text-emerald-800 mb-1">
-                          Matched Keywords
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {activeVersion.analysis.matchedKeywords.map((kw, i) => (
-                            <span
-                              key={i}
-                              className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200"
-                            >
-                              {kw}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {activeVersion.analysis.missingKeywords.length > 0 && (
-                      <div>
-                        <div className="font-semibold text-amber-800 mb-1">
-                          Gaps / Not Evidenced in Pool
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {activeVersion.analysis.missingKeywords.map((kw, i) => (
-                            <span
-                              key={i}
-                              className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200"
-                            >
-                              {kw}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {activeVersion.analysis.tailoringNotes.length > 0 && (
-                      <div>
-                        <div className="font-semibold text-slate-700 mb-1">
-                          AI Notes & Reminders
-                        </div>
-                        <ul className="list-disc pl-4 space-y-0.5 text-slate-600">
-                          {activeVersion.analysis.tailoringNotes.map((note, i) => (
-                            <li key={i}>{note}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 
@@ -502,8 +513,8 @@ export default function StudioPage() {
   return (
     <Suspense
       fallback={
-        <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-sm text-slate-500">
-          Loading studio...
+        <div className="ph-card-soft p-10 text-center font-mono-label text-sm text-[#6B7280]">
+          loading studio...
         </div>
       }
     >

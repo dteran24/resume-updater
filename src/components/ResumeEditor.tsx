@@ -152,18 +152,27 @@ export function ResumeEditor({
     });
   };
 
-  const inputCls =
-    "w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500";
-  const labelCls = "block text-xs font-medium text-slate-600 mb-1";
+  const inputCls = "ph-input px-3 py-1.5 text-sm";
+  const labelCls = "block text-xs font-bold text-[#4B5563] mb-1";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Basics */}
-      <section className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
-        <h3 className="text-sm font-semibold text-slate-900">Contact & Summary</h3>
+      <section className="ph-card-soft p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-[#E4E4E7] pb-2">
+          <h3 className="text-sm font-extrabold text-[#111827]">
+            Contact & Summary
+          </h3>
+          <span className="font-mono-label text-[11px] text-[#6B7280]">
+            basics
+          </span>
+        </div>
+
         <div
           className={`grid gap-3 ${
-            compact ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
+            compact
+              ? "grid-cols-1 sm:grid-cols-2"
+              : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3"
           }`}
         >
           <div>
@@ -240,38 +249,41 @@ export function ResumeEditor({
             rows={3}
             value={value.basics.summary}
             onChange={(e) => updateBasics({ summary: e.target.value })}
-            placeholder="Concise summary of your experience and strengths..."
+            placeholder="Concise summary of what you build and where you shine..."
             className={inputCls}
           />
         </div>
       </section>
 
       {/* Experience */}
-      <section className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">
-            Experience ({value.experience.length})
-          </h3>
+      <section className="ph-card-soft p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-[#E4E4E7] pb-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-extrabold text-[#111827]">Experience</h3>
+            <span className="font-mono-label text-[11px] px-1.5 py-0.5 rounded bg-[#F4F4F5] border border-[#E4E4E7] text-[#4B5563]">
+              {value.experience.length}
+            </span>
+          </div>
           <button
             type="button"
             onClick={addExperience}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+            className="ph-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 text-[#0D9488]" />
             Add Role
           </button>
         </div>
 
         {value.experience.length === 0 ? (
-          <p className="text-xs text-slate-500">
-            No experience entries yet. Import a resume above or click Add Role.
+          <p className="text-xs text-[#6B7280]">
+            No roles yet. Upload or paste your resume above, or add a role manually.
           </p>
         ) : (
           <div className="space-y-4">
             {value.experience.map((exp, idx) => (
               <div
                 key={exp.id || idx}
-                className="rounded-lg border border-slate-200 bg-slate-50/70 p-3.5 space-y-3"
+                className="rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] p-3.5 space-y-3"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1">
@@ -341,7 +353,7 @@ export function ResumeEditor({
                   <button
                     type="button"
                     onClick={() => removeExperience(idx)}
-                    className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
+                    className="p-1.5 rounded-md text-[#6B7280] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
                     title="Remove role"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -371,17 +383,20 @@ export function ResumeEditor({
       </section>
 
       {/* Projects */}
-      <section className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">
-            Projects ({value.projects.length})
-          </h3>
+      <section className="ph-card-soft p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-[#E4E4E7] pb-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-extrabold text-[#111827]">Projects</h3>
+            <span className="font-mono-label text-[11px] px-1.5 py-0.5 rounded bg-[#F4F4F5] border border-[#E4E4E7] text-[#4B5563]">
+              {value.projects.length}
+            </span>
+          </div>
           <button
             type="button"
             onClick={addProject}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+            className="ph-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 text-[#0D9488]" />
             Add Project
           </button>
         </div>
@@ -391,7 +406,7 @@ export function ResumeEditor({
             {value.projects.map((proj, idx) => (
               <div
                 key={proj.id || idx}
-                className="rounded-lg border border-slate-200 bg-slate-50/70 p-3.5 space-y-2.5"
+                className="rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] p-3.5 space-y-2.5"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1">
@@ -407,7 +422,9 @@ export function ResumeEditor({
                       />
                     </div>
                     <div>
-                      <label className={labelCls}>Technologies (comma-separated)</label>
+                      <label className={labelCls}>
+                        Technologies (comma-separated)
+                      </label>
                       <input
                         type="text"
                         value={proj.technologies.join(", ")}
@@ -426,7 +443,7 @@ export function ResumeEditor({
                   <button
                     type="button"
                     onClick={() => removeProject(idx)}
-                    className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
+                    className="p-1.5 rounded-md text-[#6B7280] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -462,17 +479,20 @@ export function ResumeEditor({
       </section>
 
       {/* Education */}
-      <section className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">
-            Education ({value.education.length})
-          </h3>
+      <section className="ph-card-soft p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-[#E4E4E7] pb-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-extrabold text-[#111827]">Education</h3>
+            <span className="font-mono-label text-[11px] px-1.5 py-0.5 rounded bg-[#F4F4F5] border border-[#E4E4E7] text-[#4B5563]">
+              {value.education.length}
+            </span>
+          </div>
           <button
             type="button"
             onClick={addEducation}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+            className="ph-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 text-[#0D9488]" />
             Add Education
           </button>
         </div>
@@ -482,7 +502,7 @@ export function ResumeEditor({
             {value.education.map((edu, idx) => (
               <div
                 key={edu.id || idx}
-                className="rounded-lg border border-slate-200 bg-slate-50/70 p-3.5 space-y-2.5"
+                className="rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] p-3.5 space-y-2.5"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 flex-1">
@@ -549,7 +569,7 @@ export function ResumeEditor({
                   <button
                     type="button"
                     onClick={() => removeEducation(idx)}
-                    className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
+                    className="p-1.5 rounded-md text-[#6B7280] hover:text-[#DC2626] hover:bg-[#FEF2F2]"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -561,17 +581,20 @@ export function ResumeEditor({
       </section>
 
       {/* Skills */}
-      <section className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">
-            Skills ({value.skills.length})
-          </h3>
+      <section className="ph-card-soft p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between border-b border-[#E4E4E7] pb-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-extrabold text-[#111827]">Skills</h3>
+            <span className="font-mono-label text-[11px] px-1.5 py-0.5 rounded bg-[#F4F4F5] border border-[#E4E4E7] text-[#4B5563]">
+              {value.skills.length}
+            </span>
+          </div>
           <button
             type="button"
             onClick={addSkillGroup}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+            className="ph-btn-secondary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 text-[#0D9488]" />
             Add Skill Group
           </button>
         </div>
@@ -581,7 +604,7 @@ export function ResumeEditor({
             {value.skills.map((group, idx) => (
               <div
                 key={idx}
-                className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/70 p-2.5"
+                className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 rounded-lg border border-[#E4E4E7] bg-[#FAFAFA] p-2.5"
               >
                 <input
                   type="text"
@@ -590,7 +613,7 @@ export function ResumeEditor({
                     updateSkillGroup(idx, { category: e.target.value })
                   }
                   placeholder="Category (e.g. Languages)"
-                  className="sm:w-44 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-medium"
+                  className="ph-input sm:w-44 px-2.5 py-1.5 text-sm font-semibold"
                 />
                 <input
                   type="text"
@@ -604,12 +627,12 @@ export function ResumeEditor({
                     })
                   }
                   placeholder="TypeScript, Go, PostgreSQL..."
-                  className="flex-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-sm"
+                  className="ph-input flex-1 px-2.5 py-1.5 text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => removeSkillGroup(idx)}
-                  className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 self-end sm:self-center"
+                  className="p-1.5 rounded-md text-[#6B7280] hover:text-[#DC2626] hover:bg-[#FEF2F2] self-end sm:self-center"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

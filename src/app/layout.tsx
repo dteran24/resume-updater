@@ -3,9 +3,9 @@ import "./globals.css";
 import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {
-  title: "Resume Updater — Living Career Log & AI Tailor",
+  title: "ReadyCV — Always-Current Resume & Job Tailor",
   description:
-    "Maintain your base resume and work data pool, then generate or tailor ATS-friendly resumes with Gemini AI.",
+    "Keep a running log of what you shipped, then format and tailor honest, job-ready resumes in one click.",
 };
 
 export default function RootLayout({

@@ -14,13 +14,14 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { BrandMascot, WindowChromeBar } from "@/components/Doodles";
 import type { SettingsStatus } from "@/types/resume";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Base Resume", icon: FileText },
-  { href: "/pool", label: "Work Data Pool", icon: Layers },
-  { href: "/studio", label: "Studio", icon: Sparkles },
-  { href: "/versions", label: "Saved Versions", icon: History },
+  { href: "/", label: "Base Resume", sub: "foundation", icon: FileText },
+  { href: "/pool", label: "Work Pool", sub: "win log", icon: Layers },
+  { href: "/studio", label: "Studio", sub: "tailor", icon: Sparkles },
+  { href: "/versions", label: "Versions", sub: "archive", icon: History },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -70,7 +71,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }
       setSettings(json as SettingsStatus);
       setApiKeyInput("");
-      setSaveMessage("Settings saved locally.");
+      setSaveMessage("Saved to local SQLite.");
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Failed to save settings");
     } finally {
@@ -91,7 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to clear API key");
       setSettings(json as SettingsStatus);
-      setSaveMessage("Stored API key cleared.");
+      setSaveMessage("Stored API key removed.");
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Error clearing key");
     } finally {
@@ -100,23 +101,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-slate-50 text-slate-900">
-      <aside className="no-print w-full md:w-64 md:min-h-screen bg-slate-900 text-slate-100 flex flex-col border-b md:border-b-0 md:border-r border-slate-800 shrink-0">
-        <div className="px-5 py-5 border-b border-slate-800">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-indigo-500 flex items-center justify-center font-bold text-white shadow-sm">
-              R
+    <div className="min-h-screen flex flex-col md:flex-row text-[#111827]">
+      <aside className="no-print w-full md:w-64 md:min-h-screen bg-white border-b md:border-b-0 md:border-r border-[#E4E4E7] flex flex-col shrink-0">
+        {/* Brand Masthead */}
+        <div className="px-4 py-4 border-b border-[#E4E4E7]">
+          <Link href="/" className="flex items-center gap-3 group">
+            <BrandMascot className="w-10 h-10 shrink-0 transition-transform group-hover:-rotate-3" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-base font-extrabold tracking-tight text-[#111827] leading-none">
+                  ReadyCV
+                </h1>
+                <span className="font-mono-label text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#CCFBF1] border border-[#99F6E4] text-[#0F766E]">
+                  LOCAL
+                </span>
+              </div>
+              <p className="font-mono-label text-[11px] text-[#6B7280] mt-1 truncate">
+                always ready to apply
+              </p>
             </div>
-            <div>
-              <h1 className="text-sm font-semibold tracking-tight text-white">
-                Resume Updater
-              </h1>
-              <p className="text-[11px] text-slate-400">Local AI Career Studio</p>
-            </div>
-          </div>
+          </Link>
         </div>
 
+        {/* Navigation */}
         <nav className="flex md:flex-col gap-1 p-3 overflow-x-auto flex-1">
+          <div className="hidden md:block px-2.5 pb-1 font-mono-label text-[10px] uppercase tracking-wider text-[#6B7280]">
+            Workspace
+          </div>
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active =
@@ -125,20 +136,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm transition-all whitespace-nowrap border ${
                   active
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                    ? "bg-[#F0FDFA] border-[#0D9488] text-[#111827] font-bold shadow-xs"
+                    : "border-transparent text-[#4B5563] font-medium hover:bg-[#F4F4F5] hover:text-[#111827]"
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
+                <span className="flex items-center gap-2.5">
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${
+                      active ? "text-[#0D9488]" : "text-[#6B7280]"
+                    }`}
+                  />
+                  <span>{item.label}</span>
+                </span>
+                <span
+                  className={`hidden md:inline font-mono-label text-[10px] ${
+                    active ? "text-[#0F766E]" : "text-[#9CA3AF]"
+                  }`}
+                >
+                  {item.sub}
+                </span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-3 border-t border-slate-800">
+        {/* Bottom Status / Settings */}
+        <div className="p-3 border-t border-[#E4E4E7] bg-[#FAFAFA]">
           <button
             type="button"
             onClick={() => {
@@ -146,80 +171,98 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               setErrorMessage("");
               setModalOpen(true);
             }}
-            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-slate-800/80 hover:bg-slate-800 text-left transition-colors"
+            className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-white border border-[#D4D4D8] hover:border-[#18181B] text-left transition-colors shadow-xs"
           >
-            <div className="flex items-center gap-2 min-w-0">
-              <Settings className="w-4 h-4 text-slate-300 shrink-0" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Settings className="w-4 h-4 text-[#111827] shrink-0" />
               <div className="min-w-0">
-                <div className="text-xs font-medium text-slate-100">AI Settings</div>
-                <div className="text-[11px] text-slate-400 truncate">
+                <div className="text-xs font-bold text-[#111827]">AI Settings</div>
+                <div className="font-mono-label text-[10px] text-[#6B7280] truncate">
                   {settings?.hasApiKey
                     ? `${settings.model} (${settings.keySource})`
-                    : "Needs Gemini API Key"}
+                    : "needs gemini key"}
                 </div>
               </div>
             </div>
             <span
-              className={`h-2.5 w-2.5 rounded-full shrink-0 ${
-                settings?.hasApiKey ? "bg-emerald-400" : "bg-amber-400"
+              className={`font-mono-label text-[10px] font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                settings?.hasApiKey
+                  ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]"
+                  : "bg-[#FFFBEB] border-[#FDE68A] text-[#B45309]"
               }`}
-              title={settings?.hasApiKey ? "Gemini API key configured" : "API key missing"}
-            />
+            >
+              {settings?.hasApiKey ? "ON" : "OFF"}
+            </span>
           </button>
         </div>
       </aside>
 
       <main className="flex-1 min-w-0 print-container">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 print-container">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7 print-container">
           {children}
         </div>
       </main>
 
       {modalOpen && (
-        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="bg-white rounded-xl shadow-xl border border-slate-200 w-full max-w-md overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-indigo-600" />
-                <h2 className="text-base font-semibold text-slate-900">
-                  Gemini AI Settings
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-[#111827]/40 p-4 backdrop-blur-[1px]">
+          <div className="ph-card w-full max-w-md overflow-hidden">
+            <WindowChromeBar
+              filename="settings.local.json"
+              rightSlot={
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="p-0.5 rounded text-[#6B7280] hover:text-[#111827]"
+                  aria-label="Close settings"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              }
+            />
 
             <form onSubmit={handleSaveSettings} className="p-5 space-y-4">
-              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 text-xs text-slate-600 space-y-1">
-                <div className="flex items-center gap-1.5 font-medium text-slate-800">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-[#0D9488]" />
+                <h2 className="text-base font-extrabold text-[#111827]">
+                  Gemini AI Configuration
+                </h2>
+              </div>
+
+              <div className="rounded-lg bg-[#F4F4F5] border border-[#E4E4E7] p-3 text-xs text-[#4B5563] space-y-1.5">
+                <div className="flex items-center gap-1.5 font-bold text-[#111827]">
                   {settings?.hasApiKey ? (
                     <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <CheckCircle2 className="w-4 h-4 text-[#059669]" />
                       <span>
-                        API Key active ({settings.maskedKey} via {settings.keySource})
+                        Key active ({settings.maskedKey} via {settings.keySource})
                       </span>
                     </>
                   ) : (
                     <>
-                      <AlertCircle className="w-4 h-4 text-amber-600" />
-                      <span>No Gemini API key configured yet</span>
+                      <AlertCircle className="w-4 h-4 text-[#D97706]" />
+                      <span>No Gemini API key set yet</span>
                     </>
                   )}
                 </div>
                 <p>
-                  Keys entered here are saved locally in SQLite (
-                  <code>data/resume-updater.db</code>). You can also set{" "}
-                  <code>GEMINI_API_KEY</code> in <code>.env.local</code>.
+                  Stored locally in{" "}
+                  <code className="font-mono-label bg-white px-1 rounded border border-[#E4E4E7]">
+                    data/resume-updater.db
+                  </code>
+                  , or set{" "}
+                  <code className="font-mono-label bg-white px-1 rounded border border-[#E4E4E7]">
+                    GEMINI_API_KEY
+                  </code>{" "}
+                  in{" "}
+                  <code className="font-mono-label bg-white px-1 rounded border border-[#E4E4E7]">
+                    .env.local
+                  </code>
+                  .
                 </p>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-[#111827] mb-1">
                   {settings?.hasApiKey ? "Replace Gemini API Key" : "Gemini API Key"}
                 </label>
                 <input
@@ -227,12 +270,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   value={apiKeyInput}
                   onChange={(e) => setApiKeyInput(e.target.value)}
                   placeholder="AIza..."
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="ph-input px-3 py-2 text-sm"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-bold text-[#111827] mb-1">
                   Gemini Model
                 </label>
                 <select
@@ -246,7 +289,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   onChange={(e) => {
                     if (e.target.value !== "custom") setModelInput(e.target.value);
                   }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-2"
+                  className="ph-input px-3 py-2 text-sm mb-2"
                 >
                   <option value="gemini-2.5-flash">gemini-2.5-flash (Recommended)</option>
                   <option value="gemini-2.5-pro">gemini-2.5-pro</option>
@@ -258,17 +301,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   value={modelInput}
                   onChange={(e) => setModelInput(e.target.value)}
                   placeholder="gemini-2.5-flash"
-                  className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="ph-input font-mono-label px-3 py-1.5 text-xs"
                 />
               </div>
 
               {saveMessage && (
-                <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
+                <p className="text-xs font-medium text-[#047857] bg-[#ECFDF5] border border-[#A7F3D0] rounded-md px-3 py-2">
                   {saveMessage}
                 </p>
               )}
               {errorMessage && (
-                <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                <p className="text-xs font-medium text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] rounded-md px-3 py-2">
                   {errorMessage}
                 </p>
               )}
@@ -279,7 +322,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     type="button"
                     onClick={handleClearKey}
                     disabled={saving}
-                    className="text-xs text-red-600 hover:text-red-700 font-medium"
+                    className="text-xs text-[#DC2626] hover:underline font-semibold"
                   >
                     Remove stored key
                   </button>
@@ -290,14 +333,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <button
                     type="button"
                     onClick={() => setModalOpen(false)}
-                    className="px-3 py-2 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100"
+                    className="ph-btn-secondary px-3 py-2 text-xs"
                   >
                     Close
                   </button>
                   <button
                     type="submit"
                     disabled={saving}
-                    className="px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                    className="ph-btn-primary px-4 py-2 text-xs disabled:opacity-50"
                   >
                     {saving ? "Saving..." : "Save Settings"}
                   </button>

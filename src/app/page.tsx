@@ -10,6 +10,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
+import { WindowChromeBar } from "@/components/Doodles";
 import { ResumeEditor } from "@/components/ResumeEditor";
 import { EMPTY_RESUME_DATA, type ResumeData } from "@/types/resume";
 
@@ -62,7 +63,7 @@ export default function BaseResumePage() {
       setData(json.data);
       setUpdatedAt(json.updatedAt);
       setDirty(false);
-      setStatusMessage("Base resume saved.");
+      setStatusMessage("Base resume saved locally.");
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Save failed");
     } finally {
@@ -106,7 +107,7 @@ export default function BaseResumePage() {
       setDirty(false);
       setSelectedFile(null);
       setRawPaste("");
-      setStatusMessage("Resume parsed with AI and saved to your Base Resume.");
+      setStatusMessage("Resume parsed and loaded into your editor below.");
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Import failed");
     } finally {
@@ -116,27 +117,30 @@ export default function BaseResumePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#E4E4E7] pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+          <span className="font-mono-label text-[11px] font-semibold uppercase tracking-wider text-[#0D9488]">
+            Step 01 · Foundation
+          </span>
+          <h1 className="text-3xl font-extrabold text-[#111827] tracking-tight mt-0.5">
             Base Resume
           </h1>
-          <p className="text-sm text-slate-600 mt-0.5">
-            Upload or paste your existing resume once to seed your structured career foundation.
+          <p className="text-sm text-[#4B5563] mt-1 max-w-2xl">
+            Start with what you already have. Upload a PDF/DOCX or dump raw text — we&apos;ll organize it into clean sections you can keep fresh anytime.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           {dirty && (
-            <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
-              Unsaved changes
+            <span className="font-mono-label text-xs font-semibold text-[#B45309] bg-[#FFFBEB] border border-[#FDE68A] px-2.5 py-1 rounded-md">
+              unsaved edits
             </span>
           )}
           <button
             type="button"
             onClick={handleSave}
             disabled={saving || loading}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 shadow-xs"
+            className="ph-btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50"
           >
             {saving ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -149,117 +153,111 @@ export default function BaseResumePage() {
       </div>
 
       {statusMessage && (
-        <div className="flex items-center gap-2 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+        <div className="flex items-center gap-2 text-sm font-medium text-[#047857] bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg px-4 py-3">
+          <CheckCircle2 className="w-4 h-4 shrink-0" />
           <span>{statusMessage}</span>
         </div>
       )}
       {errorMessage && (
-        <div className="flex items-center gap-2 text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-          <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+        <div className="flex items-center gap-2 text-sm font-medium text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-4 py-3">
+          <AlertCircle className="w-4 h-4 shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
 
       {/* Import Card */}
-      <form
-        onSubmit={handleImport}
-        className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs space-y-4"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-indigo-600" />
-            <h2 className="text-sm font-semibold text-slate-900">
-              Import & Parse with Gemini AI
-            </h2>
-          </div>
+      <form onSubmit={handleImport} className="ph-card overflow-hidden">
+        <WindowChromeBar
+          filename="resume-importer.sh"
+          rightSlot={
+            <div className="inline-flex rounded-md bg-white border border-[#D4D4D8] p-0.5">
+              <button
+                type="button"
+                onClick={() => setImportMode("file")}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
+                  importMode === "file"
+                    ? "bg-[#0D9488] text-white"
+                    : "text-[#4B5563] hover:text-[#111827]"
+                }`}
+              >
+                <Upload className="w-3 h-3" />
+                Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportMode("paste")}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold transition-colors ${
+                  importMode === "paste"
+                    ? "bg-[#0D9488] text-white"
+                    : "text-[#4B5563] hover:text-[#111827]"
+                }`}
+              >
+                <FileText className="w-3 h-3" />
+                Paste Text
+              </button>
+            </div>
+          }
+        />
 
-          <div className="inline-flex rounded-lg bg-slate-100 p-1">
-            <button
-              type="button"
-              onClick={() => setImportMode("file")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                importMode === "file"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <Upload className="w-3.5 h-3.5" />
-              Upload PDF / DOCX
-            </button>
-            <button
-              type="button"
-              onClick={() => setImportMode("paste")}
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                importMode === "paste"
-                  ? "bg-white text-slate-900 shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              Paste Text
-            </button>
-          </div>
-        </div>
-
-        {importMode === "file" ? (
-          <label className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50/70 hover:bg-slate-50 px-6 py-6 cursor-pointer transition-colors">
-            <Upload className="w-6 h-6 text-slate-400 mb-2" />
-            <span className="text-sm font-medium text-slate-700">
-              {selectedFile
-                ? selectedFile.name
-                : "Click to select a .pdf, .docx, .txt, or .md resume"}
-            </span>
-            <span className="text-xs text-slate-500 mt-1">
-              Text is extracted locally and structured via Gemini
-            </span>
-            <input
-              type="file"
-              accept=".pdf,.docx,.txt,.md"
-              className="hidden"
-              onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+        <div className="p-5 space-y-4">
+          {importMode === "file" ? (
+            <label className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-[#D4D4D8] bg-[#FAFAFA] hover:bg-[#F0FDFA]/60 hover:border-[#0D9488] px-6 py-7 cursor-pointer transition-colors">
+              <Upload className="w-6 h-6 text-[#0D9488] mb-2" />
+              <span className="text-sm font-bold text-[#111827]">
+                {selectedFile
+                  ? selectedFile.name
+                  : "Drop or click to pick a .pdf, .docx, .txt, or .md resume"}
+              </span>
+              <span className="font-mono-label text-xs text-[#6B7280] mt-1">
+                parsed locally · structured with Gemini
+              </span>
+              <input
+                type="file"
+                accept=".pdf,.docx,.txt,.md"
+                className="hidden"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+          ) : (
+            <textarea
+              rows={7}
+              value={rawPaste}
+              onChange={(e) => setRawPaste(e.target.value)}
+              placeholder="Paste your entire current resume text here..."
+              className="ph-input px-3.5 py-2.5 text-sm"
             />
-          </label>
-        ) : (
-          <textarea
-            rows={7}
-            value={rawPaste}
-            onChange={(e) => setRawPaste(e.target.value)}
-            placeholder="Paste your entire current resume text here..."
-            className="w-full rounded-xl border border-slate-300 bg-slate-50/50 px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-        )}
+          )}
 
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-xs text-slate-500">
-            {updatedAt
-              ? `Last saved: ${new Date(updatedAt).toLocaleString()}`
-              : "No base resume saved yet."}
-          </span>
-          <button
-            type="submit"
-            disabled={importing}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            {importing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Parsing Resume...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                Parse & Populate Editor
-              </>
-            )}
-          </button>
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <span className="font-mono-label text-xs text-[#6B7280]">
+              {updatedAt
+                ? `last saved: ${new Date(updatedAt).toLocaleString()}`
+                : "no base resume saved yet"}
+            </span>
+            <button
+              type="submit"
+              disabled={importing}
+              className="ph-btn-dark inline-flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50"
+            >
+              {importing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Parsing Resume...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-[#5EEAD4]" />
+                  Parse & Populate Editor
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </form>
 
-      {/* Structured Editor */}
       {loading ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-sm text-slate-500">
-          Loading base resume...
+        <div className="ph-card-soft p-10 text-center font-mono-label text-sm text-[#6B7280]">
+          loading base resume...
         </div>
       ) : (
         <ResumeEditor

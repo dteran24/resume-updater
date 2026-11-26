@@ -3,13 +3,13 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  History,
   ExternalLink,
   Trash2,
   ArrowRight,
   Sparkles,
   Target,
 } from "lucide-react";
+import { NotebookDoodle, WindowChromeBar } from "@/components/Doodles";
 import type { ResumeVersion } from "@/types/resume";
 
 export default function SavedVersionsPage() {
@@ -47,19 +47,22 @@ export default function SavedVersionsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-[#E4E4E7] pb-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
+          <span className="font-mono-label text-[11px] font-semibold uppercase tracking-wider text-[#0D9488]">
+            Step 04 · Archive
+          </span>
+          <h1 className="text-3xl font-extrabold text-[#111827] tracking-tight mt-0.5">
             Saved Versions
           </h1>
-          <p className="text-sm text-slate-600 mt-0.5">
-            Every Master and Job-Tailored resume you generate is saved here for editing and PDF/Markdown export.
+          <p className="text-sm text-[#4B5563] mt-1">
+            Every Master and Job-Tailored resume snapshot lives here for quick tweaks or PDF export.
           </p>
         </div>
 
         <Link
           href="/studio"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700"
+          className="ph-btn-primary inline-flex items-center gap-2 px-4 py-2 text-sm"
         >
           <Sparkles className="w-4 h-4" />
           Open Studio
@@ -67,27 +70,27 @@ export default function SavedVersionsPage() {
       </div>
 
       {error && (
-        <div className="text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+        <div className="text-sm font-medium text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] rounded-lg px-4 py-3">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 text-center text-sm text-slate-500">
-          Loading saved versions...
+        <div className="ph-card-soft p-10 text-center font-mono-label text-sm text-[#6B7280]">
+          loading saved versions...
         </div>
       ) : versions.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-10 text-center space-y-3">
-          <History className="w-8 h-8 text-slate-300 mx-auto" />
-          <p className="text-sm text-slate-600">
-            No generated resumes yet. Head to Studio to create your first Master or Tailored resume.
+        <div className="ph-card-soft p-10 text-center space-y-3">
+          <NotebookDoodle className="w-14 h-14 mx-auto" />
+          <p className="text-sm font-medium text-[#4B5563]">
+            No generated resumes yet. Hop into Studio to build your first Master or Tailored version.
           </p>
           <Link
             href="/studio"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-slate-900 text-white hover:bg-slate-800"
+            className="ph-btn-dark inline-flex items-center gap-1.5 px-4 py-2 text-sm"
           >
             Go to Studio
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-4 h-4 text-[#5EEAD4]" />
           </Link>
         </div>
       ) : (
@@ -98,40 +101,44 @@ export default function SavedVersionsPage() {
             return (
               <div
                 key={v.id}
-                className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs flex flex-col justify-between gap-4"
+                className="ph-card overflow-hidden flex flex-col justify-between"
               >
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase ${
-                          v.kind === "tailored"
-                            ? "bg-indigo-100 text-indigo-800"
-                            : "bg-emerald-100 text-emerald-800"
-                        }`}
-                      >
-                        {v.kind === "tailored" ? (
-                          <Target className="w-3 h-3" />
-                        ) : (
-                          <Sparkles className="w-3 h-3" />
-                        )}
-                        {v.kind}
-                      </span>
-                      <span className="text-xs text-slate-400">
-                        {new Date(v.updatedAt).toLocaleDateString()}
-                      </span>
-                    </div>
+                <WindowChromeBar
+                  filename={`${v.kind}-${new Date(v.updatedAt).toISOString().slice(0, 10)}.md`}
+                  rightSlot={
                     <button
                       type="button"
                       onClick={() => handleDelete(v.id)}
-                      className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
+                      className="p-0.5 rounded text-[#6B7280] hover:text-[#DC2626]"
                       title="Delete version"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
+                  }
+                />
+
+                <div className="p-4 space-y-2.5 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`font-mono-label inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                        v.kind === "tailored"
+                          ? "bg-[#CCFBF1] border-[#99F6E4] text-[#0F766E]"
+                          : "bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]"
+                      }`}
+                    >
+                      {v.kind === "tailored" ? (
+                        <Target className="w-3 h-3" />
+                      ) : (
+                        <Sparkles className="w-3 h-3" />
+                      )}
+                      {v.kind}
+                    </span>
+                    <span className="font-mono-label text-xs text-[#6B7280]">
+                      {new Date(v.updatedAt).toLocaleDateString()}
+                    </span>
                   </div>
 
-                  <h2 className="text-base font-semibold text-slate-900">
+                  <h2 className="text-base font-extrabold text-[#111827]">
                     {v.title}
                   </h2>
 
@@ -140,25 +147,25 @@ export default function SavedVersionsPage() {
                       href={v.jobUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:underline break-all"
+                      className="font-mono-label inline-flex items-center gap-1 text-xs text-[#0D9488] hover:underline break-all"
                     >
                       <ExternalLink className="w-3 h-3 shrink-0" />
                       {v.jobUrl}
                     </a>
                   )}
 
-                  <div className="flex flex-wrap gap-2 text-xs text-slate-600 pt-1">
-                    <span>{v.usedPoolIds.length} pool items used</span>
+                  <div className="font-mono-label flex flex-wrap gap-2 text-xs text-[#4B5563] pt-1">
+                    <span>{v.usedPoolIds.length} pool items</span>
                     {v.kind === "tailored" && (
                       <>
-                        <span>•</span>
-                        <span className="text-emerald-700 font-medium">
-                          {matchedCount} matched keywords
+                        <span>·</span>
+                        <span className="text-[#047857] font-semibold">
+                          {matchedCount} matched
                         </span>
                         {missingCount > 0 && (
                           <>
-                            <span>•</span>
-                            <span className="text-amber-700">
+                            <span>·</span>
+                            <span className="text-[#B45309]">
                               {missingCount} gaps
                             </span>
                           </>
@@ -168,13 +175,13 @@ export default function SavedVersionsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end pt-2 border-t border-slate-100">
+                <div className="px-4 py-3 bg-[#FAFAFA] border-t border-[#E4E4E7] flex items-center justify-end">
                   <Link
                     href={`/studio?versionId=${v.id}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-900 text-white hover:bg-slate-800"
+                    className="ph-btn-dark inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
                   >
                     Open in Studio
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <ArrowRight className="w-3.5 h-3.5 text-[#5EEAD4]" />
                   </Link>
                 </div>
               </div>
