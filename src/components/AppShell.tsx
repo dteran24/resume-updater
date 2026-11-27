@@ -110,14 +110,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="flex items-center gap-3 group">
             <BrandMascot className="w-10 h-10 shrink-0 transition-transform group-hover:-rotate-3" />
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h1 className="text-base font-extrabold tracking-tight text-[#111827] leading-none">
-                  ReadyCV
-                </h1>
-                <span className="font-mono-label text-[10px] font-semibold px-1.5 py-0.5 rounded bg-[#CCFBF1] border border-[#99F6E4] text-[#0F766E]">
-                  {settings?.publicMode ? "PUBLIC" : "LOCAL"}
-                </span>
-              </div>
+              <h1 className="text-base font-extrabold tracking-tight text-[#111827] leading-none">
+                ReadyCV
+              </h1>
               <p className="font-mono-label text-[11px] text-[#6B7280] mt-1 truncate">
                 always ready to apply
               </p>
