@@ -7,3 +7,4 @@ data/
 *.db
 *.db-*
 npm-debug.log*
+*.tsbuildinfo
