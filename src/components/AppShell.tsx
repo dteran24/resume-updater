@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<SettingsStatus | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
-  const [modelInput, setModelInput] = useState("gemini-2.5-flash");
+  const [modelInput, setModelInput] = useState("gemini-4-neon");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -40,7 +40,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (!res.ok) return;
       const data = (await res.json()) as SettingsStatus;
       setSettings(data);
-      setModelInput(data.model || "gemini-2.5-flash");
+      setModelInput(data.model || "gemini-4-neon");
     } catch {
       // ignore initial fetch error
     }
@@ -62,7 +62,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           apiKey: apiKeyInput.trim() || undefined,
-          model: modelInput.trim() || "gemini-2.5-flash",
+          model: modelInput.trim() || "gemini-4-neon",
         }),
       });
       const json = await res.json();
@@ -280,9 +280,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </label>
                 <select
                   value={
-                    ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"].includes(
-                      modelInput
-                    )
+                    [
+                      "gemini-4-neon",
+                      "gemini-4-hydrogen",
+                      "gemini-4-carbon",
+                      "gemini-4-argon",
+                      "gemini-3.8-flash",
+                      "gemini-2.5-flash",
+                    ].includes(modelInput)
                       ? modelInput
                       : "custom"
                   }
@@ -291,16 +296,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   }}
                   className="ph-input px-3 py-2 text-sm mb-2"
                 >
-                  <option value="gemini-2.5-flash">gemini-2.5-flash (Recommended)</option>
-                  <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                  <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                  <option value="gemini-4-neon">
+                    gemini-4-neon — High Thinking (Default)
+                  </option>
+                  <option value="gemini-4-hydrogen">gemini-4-hydrogen</option>
+                  <option value="gemini-4-carbon">gemini-4-carbon</option>
+                  <option value="gemini-4-argon">gemini-4-argon</option>
+                  <option value="gemini-3.8-flash">gemini-3.8-flash</option>
+                  <option value="gemini-2.5-flash">gemini-2.5-flash</option>
                   <option value="custom">Custom model name...</option>
                 </select>
                 <input
                   type="text"
                   value={modelInput}
                   onChange={(e) => setModelInput(e.target.value)}
-                  placeholder="gemini-2.5-flash"
+                  placeholder="gemini-4-neon"
                   className="ph-input font-mono-label px-3 py-1.5 text-xs"
                 />
               </div>

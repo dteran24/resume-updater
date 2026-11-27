@@ -13,7 +13,7 @@ import {
   formatRoleLabel,
 } from "@/types/resume";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-4-neon";
 
 interface GlobalWithDb {
   __resumeUpdaterDb?: {

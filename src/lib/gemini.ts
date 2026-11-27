@@ -1,4 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { z } from "zod";
 import { getSetting } from "@/lib/db";
 import {
@@ -10,7 +10,7 @@ import {
   formatRoleLabel,
 } from "@/types/resume";
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-4-neon";
 
 function getGeminiConfig(): { apiKey: string; model: string } {
   const apiKey =
@@ -41,13 +41,23 @@ async function callGeminiJson<T>(
   const { apiKey, model } = getGeminiConfig();
   const ai = new GoogleGenAI({ apiKey });
 
+  const isGemini4Or3 = model.startsWith("gemini-4") || model.startsWith("gemini-3");
+
   const response = await ai.models.generateContent({
     model,
     contents: userPrompt,
     config: {
       systemInstruction,
       responseMimeType: "application/json",
-      temperature: 0.2,
+      ...(isGemini4Or3
+        ? {
+            thinkingConfig: {
+              thinkingLevel: ThinkingLevel.HIGH,
+            },
+          }
+        : {
+            temperature: 0.2,
+          }),
     },
   });
 
