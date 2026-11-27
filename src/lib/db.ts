@@ -497,6 +497,16 @@ export function listResumeVersions(): ResumeVersion[] {
   return rows.map(rowToVersion);
 }
 
+export function getLatestMasterResume(): ResumeVersion | null {
+  const db = getDb();
+  const row = db
+    .prepare(
+      "SELECT * FROM resume_versions WHERE kind = 'master' ORDER BY updated_at DESC LIMIT 1"
+    )
+    .get() as VersionRow | undefined;
+  return row ? rowToVersion(row) : null;
+}
+
 export function getResumeVersion(id: string): ResumeVersion | null {
   const db = getDb();
   const row = db
@@ -556,7 +566,7 @@ export function createResumeVersion(input: CreateResumeVersionInput): ResumeVers
 
 export function updateResumeVersion(
   id: string,
-  patch: { title?: string; data?: ResumeData }
+  patch: { title?: string; data?: ResumeData; analysis?: TailoringAnalysis | null }
 ): ResumeVersion | null {
   const existing = getResumeVersion(id);
   if (!existing) return null;
@@ -565,16 +575,29 @@ export function updateResumeVersion(
   const updatedTitle = patch.title !== undefined ? patch.title.trim() : existing.title;
   const updatedData =
     patch.data !== undefined ? ResumeDataSchema.parse(patch.data) : existing.data;
+  const updatedAnalysis =
+    patch.analysis !== undefined
+      ? patch.analysis
+        ? TailoringAnalysisSchema.parse(patch.analysis)
+        : null
+      : existing.analysis;
 
   const db = getDb();
   db.prepare(
-    "UPDATE resume_versions SET title = ?, data_json = ?, updated_at = ? WHERE id = ?"
-  ).run(updatedTitle, JSON.stringify(updatedData), now, id);
+    "UPDATE resume_versions SET title = ?, data_json = ?, analysis_json = ?, updated_at = ? WHERE id = ?"
+  ).run(
+    updatedTitle,
+    JSON.stringify(updatedData),
+    updatedAnalysis ? JSON.stringify(updatedAnalysis) : null,
+    now,
+    id
+  );
 
   return {
     ...existing,
     title: updatedTitle,
     data: updatedData,
+    analysis: updatedAnalysis,
     updatedAt: now,
   };
 }

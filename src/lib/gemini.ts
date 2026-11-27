@@ -2,6 +2,7 @@ import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { z } from "zod";
 import { FIXED_GEMINI_MODEL, getSetting } from "@/lib/db";
 import {
+  PageTarget,
   PoolEntry,
   ResumeData,
   ResumeDataSchema,
@@ -35,32 +36,75 @@ async function callGeminiJson<T>(
   const apiKey = getGeminiApiKey();
   const ai = new GoogleGenAI({ apiKey });
 
-  const response = await ai.models.generateContent({
-    model: FIXED_GEMINI_MODEL,
-    contents: userPrompt,
-    config: {
-      systemInstruction,
-      responseMimeType: "application/json",
-      thinkingConfig: {
-        thinkingLevel: ThinkingLevel.HIGH,
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await ai.models.generateContent({
+      model: FIXED_GEMINI_MODEL,
+      contents:
+        attempt === 0
+          ? userPrompt
+          : `${userPrompt}\n\nIMPORTANT: Your previous response could not be parsed as valid JSON. Return ONLY raw valid JSON matching the exact schema with no prose or markdown.`,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        thinkingConfig: {
+          thinkingLevel: ThinkingLevel.HIGH,
+        },
       },
-    },
-  });
+    });
 
-  const text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned an empty response.");
+    const text = response.text;
+    if (!text) {
+      lastError = new Error("Gemini returned an empty response.");
+      continue;
+    }
+
+    try {
+      const parsedJson = JSON.parse(stripJsonFences(text));
+      return schema.parse(parsedJson);
+    } catch (err) {
+      lastError =
+        err instanceof Error
+          ? new Error(`Gemini returned malformed structured output: ${err.message}`)
+          : new Error("Gemini returned invalid JSON. Please try again.");
+    }
   }
 
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(stripJsonFences(text));
-  } catch {
-    throw new Error("Gemini returned invalid JSON. Please try again.");
-  }
-
-  return schema.parse(parsedJson);
+  throw lastError ?? new Error("Gemini request failed.");
 }
+
+function sanitizePoolIds(ids: string[], validIds: Set<string>): string[] {
+  const seen = new Set<string>();
+  const clean: string[] = [];
+  for (const id of ids) {
+    if (validIds.has(id) && !seen.has(id)) {
+      seen.add(id);
+      clean.push(id);
+    }
+  }
+  return clean;
+}
+
+function pageBudgetInstructions(pageTarget: PageTarget): string {
+  if (pageTarget === "2-page") {
+    return `PAGE BUDGET (2-PAGE TARGET):
+- Allow up to 5–7 bullets for the most recent 1–2 roles and 3–4 bullets for older roles.
+- Include relevant projects and leadership/mentoring impact where backed by the pool.
+- Keep each bullet concise (1–2 lines max) and scannable.`;
+  }
+  return `PAGE BUDGET (1-PAGE TARGET):
+- Strictly budget for a crisp single-page resume: 3–5 bullets for the most recent 1–2 roles, 2–3 bullets for older roles.
+- Keep summary to 2 concise sentences max (or omit filler).
+- Trim redundant or low-impact bullets so every line earns its space.`;
+}
+
+const BULLET_CRAFT_RULES = `WRITING & FORMATTING STANDARD (IMPACT-FIRST):
+- Every bullet follows Action Verb + Scope/Context + Measurable Outcome (XYZ/STAR style).
+- Never use first-person pronouns ("I", "me", "my", "we").
+- Ban vague filler ("Responsible for...", "Helped with...", "Worked on...", "Passionate self-starter", "Spearheaded synergies").
+- Keep bullets punchy (1–2 lines max). Preserve exact numbers/metrics from the user's input — NEVER invent or inflate numbers.
+- Order Experience reverse-chronologically (most recent first) and normalize date formatting consistently (e.g. "Jan 2024 – Present").
+- Group Skills into clean, scannable categories (e.g. Languages, Frameworks, Infrastructure).`;
 
 const RESUME_JSON_SHAPE_GUIDE = `Return ONLY a JSON object with this exact shape:
 {
@@ -113,6 +157,18 @@ const RESUME_JSON_SHAPE_GUIDE = `Return ONLY a JSON object with this exact shape
   ]
 }`;
 
+const SUGGESTED_EDITS_AND_COACHING_GUIDE = `SUGGESTED EDITS & COACHING OUTPUT:
+- In "analysis.suggestedEdits", list the meaningful individual edits you made (4–12 high-signal items) so the user can review and Accept/Reject each one:
+  - section: "summary" | "experience" | "projects" | "skills"
+  - targetLabel: exact role label like "Role @ Company" (for experience), project name (for projects), "Summary", or skill category (for skills)
+  - action: "add" | "rewrite" | "remove"
+  - before: exact original bullet/summary/skills text from the input resume ("" if action is "add")
+  - after: exact new text placed in "data" ("" if action is "remove")
+  - reason: 1 concise sentence explaining why this edit strengthens the resume or aligns with the JD
+  - sourcePoolIds: array of exact workDataPool entry IDs used for this edit (empty array if purely polishing existing resume text)
+- In "analysis.coachingSuggestions", include 2–5 actionable coaching prompts:
+  - kind: "missing-metric" (bullets that would be much stronger if the user adds a real number like latency, users, or $ saved), "jd-gap-question" (important JD skills not found in the pool — phrase as a friendly question like "The JD emphasizes Terraform — if you've used it, log a quick win in Work Pool"), "weak-bullet" (redundant or vague items), or "formatting" (e.g. verify dates on an unlisted new role).`;
+
 export async function parseResumeWithAI(rawText: string): Promise<ResumeData> {
   const systemInstruction = `You are a precise resume parser. Extract the user's resume text into structured JSON without inventing, embellishing, or omitting factual details. Preserve existing dates, companies, titles, metrics, links, and bullet points faithfully.
 ${RESUME_JSON_SHAPE_GUIDE}`;
@@ -164,7 +220,7 @@ export async function autoTagPoolEntryWithAI(
   existingRoles: string[],
   hints?: { companyHint?: string; roleHint?: string; occurredAt?: string }
 ): Promise<AutoTagResult> {
-  const systemInstruction = `You analyze a user's raw work accomplishment note ("brag doc" entry) and return structured metadata.
+  const systemInstruction = `You analyze a user's raw work accomplishment note ("win log" entry) and return structured metadata.
 Rules:
 1. Extract 2-6 concise skill/domain tags (e.g. "TypeScript", "PostgreSQL", "CI/CD", "Leadership").
 2. Extract any concrete quantitative metrics present in the note (e.g. "40% latency reduction", "$50k saved"). Never invent metrics.
@@ -207,39 +263,65 @@ const GeneratedResumeResponseSchema = z.object({
     matchedKeywords: [],
     missingKeywords: [],
     tailoringNotes: [],
+    suggestedEdits: [],
+    coachingSuggestions: [],
   }),
 });
 
 export async function generateMasterResumeWithAI(
   baseResume: ResumeData,
-  poolEntries: PoolEntry[]
+  poolEntries: PoolEntry[],
+  pageTarget: PageTarget = "1-page"
 ): Promise<{
   data: ResumeData;
   usedPoolIds: string[];
   analysis: TailoringAnalysis;
 }> {
-  const systemInstruction = `You are an expert technical/professional resume writer. Your job is to synthesize a user's Base Resume and their Work Data Pool into an updated, polished, ATS-friendly Master Resume.
+  const systemInstruction = `You are an expert technical/professional resume writer. Synthesize the user's Base Resume and Work Data Pool into an updated, polished, ATS-friendly Master Resume.
 
 STRICT RULES:
 1. STRICT FACT-GROUNDING: Only use facts, employers, titles, dates, technologies, and metrics present in the Base Resume or Work Data Pool. NEVER invent numbers, employers, degrees, or skills.
-2. BULLET SYNTHESIS: Turn raw Work Data Pool notes into crisp, action-verb-led, impact-focused resume bullets. Deduplicate overlapping bullets between the base resume and pool entries.
-3. UNLISTED COMPANY / ROLE EDGE CASE: If any Work Data Pool entries reference a company or role (via companyHint, roleHint, suggestedCompany, suggestedRole, or text) that is NOT in the Base Resume's experience list, DO NOT drop those entries and DO NOT misattribute them to an older employer! Instead, create a new Experience entry for that company/role (ordered most-recent first, using dates from occurredAt or "Present" if unknown) and add a clear reminder in analysis.tailoringNotes asking the user to verify the exact title and dates.
-4. SKILLS & SUMMARY: Refresh the summary and skills sections to reflect verified skills from both the Base Resume and Work Data Pool.
-5. Return the IDs of every pool entry incorporated in "usedPoolIds".
+2. ${BULLET_CRAFT_RULES}
+3. ${pageBudgetInstructions(pageTarget)}
+4. DEDUPLICATION & SYNTHESIS: Merge overlapping accomplishments between the Base Resume and Work Data Pool into single stronger bullets rather than duplicating them.
+5. UNLISTED COMPANY / ROLE EDGE CASE: If any Work Data Pool entries reference a company or role (via companyHint, roleHint, suggestedCompany, suggestedRole, or text) that is NOT in the Base Resume's experience list, DO NOT drop those entries and DO NOT misattribute them to an older employer! Create a new Experience entry for that company/role (ordered most-recent first, using dates from occurredAt or "Present" if unknown) and add a formatting coachingSuggestion asking the user to verify the exact title and dates.
+6. ${SUGGESTED_EDITS_AND_COACHING_GUIDE}
+7. Return the exact IDs of every pool entry incorporated in "usedPoolIds".
 
 Return ONLY JSON matching:
 {
   "data": <ResumeData>,
-  "usedPoolIds": ["pool-entry-id"],
+  "usedPoolIds": ["exact-pool-entry-id"],
   "analysis": {
     "matchedKeywords": [],
     "missingKeywords": [],
-    "tailoringNotes": ["concise notes explaining updates or new roles added"]
+    "tailoringNotes": ["concise summary notes"],
+    "suggestedEdits": [
+      {
+        "id": "edit-1",
+        "section": "summary" | "experience" | "projects" | "skills",
+        "targetLabel": "Role @ Company",
+        "action": "add" | "rewrite" | "remove",
+        "before": "string",
+        "after": "string",
+        "reason": "string",
+        "sourcePoolIds": ["exact-pool-entry-id"],
+        "accepted": true
+      }
+    ],
+    "coachingSuggestions": [
+      {
+        "kind": "missing-metric" | "jd-gap-question" | "weak-bullet" | "formatting",
+        "targetLabel": "string",
+        "message": "string"
+      }
+    ]
   }
 }
 ${RESUME_JSON_SHAPE_GUIDE.replace("Return ONLY a JSON object with this exact shape:", "Schema for <ResumeData>:")}`;
 
   const payload = {
+    pageTarget,
     baseResume,
     existingRoleLabels: baseResume.experience.map(formatRoleLabel),
     workDataPool: poolEntries.map((e) => ({
@@ -255,11 +337,34 @@ ${RESUME_JSON_SHAPE_GUIDE.replace("Return ONLY a JSON object with this exact sha
     })),
   };
 
-  return callGeminiJson(
+  const result = await callGeminiJson(
     systemInstruction,
     JSON.stringify(payload, null, 2),
     GeneratedResumeResponseSchema
   );
+
+  const validIds = new Set(poolEntries.map((e) => e.id));
+  const sanitizedEdits = result.analysis.suggestedEdits.map((edit) => ({
+    ...edit,
+    sourcePoolIds: sanitizePoolIds(edit.sourcePoolIds, validIds),
+    accepted: true,
+  }));
+
+  const usedFromEdits = sanitizedEdits.flatMap((e) => e.sourcePoolIds);
+  const usedPoolIds = sanitizePoolIds(
+    [...result.usedPoolIds, ...usedFromEdits],
+    validIds
+  );
+
+  return {
+    data: result.data,
+    usedPoolIds,
+    analysis: {
+      ...result.analysis,
+      suggestedEdits: sanitizedEdits,
+      pageTarget,
+    },
+  };
 }
 
 const TailoredResumeResponseSchema = GeneratedResumeResponseSchema.extend({
@@ -271,43 +376,68 @@ const TailoredResumeResponseSchema = GeneratedResumeResponseSchema.extend({
 });
 
 export async function tailorResumeToJobWithAI(
-  baseResume: ResumeData,
+  sourceResume: ResumeData,
   poolEntries: PoolEntry[],
-  jobDescription: string
+  jobDescription: string,
+  pageTarget: PageTarget = "1-page"
 ): Promise<{
   suggestedTitle: string;
   data: ResumeData;
   usedPoolIds: string[];
   analysis: TailoringAnalysis;
 }> {
-  const systemInstruction = `You are an expert ATS-aware resume strategist. Tailor the user's resume for a specific Job Description using ONLY their Base Resume and Work Data Pool.
+  const systemInstruction = `You are an expert ATS-aware resume strategist. Tailor the user's resume for a specific Job Description using ONLY their Source Resume and Work Data Pool.
 
 STRICT RULES:
-1. STRICT FACT-GROUNDING: Never fabricate experience, skills, titles, metrics, or tools that do not appear in the Base Resume or Work Data Pool. If a job requirement is missing from the user's background, list it in analysis.missingKeywords — do NOT pretend the user has it.
-2. RELEVANCE & ORDERING: Prioritize and rephrase bullets (using truthful terminology aligned with the JD) from the Base Resume and Work Data Pool that best demonstrate fit for this role. Trim less relevant filler bullets if needed for focus.
-3. UNLISTED COMPANY / ROLE EDGE CASE: If relevant Work Data Pool entries belong to a company or role NOT yet in the Base Resume's experience list, DO NOT omit them or attach them to the wrong company. Create a dedicated Experience entry for that company/role (using occurredAt dates or "Present" if unknown) and note it in analysis.tailoringNotes for the user to verify.
-4. ANALYSIS:
+1. STRICT FACT-GROUNDING: Never fabricate experience, skills, titles, metrics, or tools that do not appear in the Source Resume or Work Data Pool. If a job requirement is missing from the user's background, list it in analysis.missingKeywords AND add a "jd-gap-question" in analysis.coachingSuggestions — do NOT pretend the user has it.
+2. ${BULLET_CRAFT_RULES}
+3. ${pageBudgetInstructions(pageTarget)}
+4. RELEVANCE & ORDERING: Prioritize and rephrase bullets (using truthful terminology aligned with the JD) from the Source Resume and Work Data Pool that best demonstrate fit for this role. Trim less relevant filler bullets to stay within the page budget.
+5. UNLISTED COMPANY / ROLE EDGE CASE: If relevant Work Data Pool entries belong to a company or role NOT yet in the Source Resume's experience list, DO NOT omit them or attach them to the wrong company. Create a dedicated Experience entry for that company/role (using occurredAt dates or "Present" if unknown) and add a formatting coachingSuggestion to verify exact title/dates.
+6. ${SUGGESTED_EDITS_AND_COACHING_GUIDE}
+7. ANALYSIS:
    - matchedKeywords: important JD skills/keywords genuinely backed by the user's resume/pool.
    - missingKeywords: important JD requirements/skills NOT evidenced in the user's resume/pool.
-   - tailoringNotes: brief explanation of key adjustments made and any unlisted roles included.
-5. suggestedTitle: concise label like "Company Name — Role Title" derived from the JD.
+   - tailoringNotes: brief explanation of the overall strategy used for this role.
+8. suggestedTitle: concise label like "Company Name — Role Title" derived from the JD.
 
 Return ONLY JSON matching:
 {
   "suggestedTitle": "string",
   "data": <ResumeData>,
-  "usedPoolIds": ["pool-entry-id"],
+  "usedPoolIds": ["exact-pool-entry-id"],
   "analysis": {
     "matchedKeywords": ["string"],
     "missingKeywords": ["string"],
-    "tailoringNotes": ["string"]
+    "tailoringNotes": ["string"],
+    "suggestedEdits": [
+      {
+        "id": "edit-1",
+        "section": "summary" | "experience" | "projects" | "skills",
+        "targetLabel": "Role @ Company",
+        "action": "add" | "rewrite" | "remove",
+        "before": "string",
+        "after": "string",
+        "reason": "string",
+        "sourcePoolIds": ["exact-pool-entry-id"],
+        "accepted": true
+      }
+    ],
+    "coachingSuggestions": [
+      {
+        "kind": "missing-metric" | "jd-gap-question" | "weak-bullet" | "formatting",
+        "targetLabel": "string",
+        "message": "string"
+      }
+    ]
   }
 }
 ${RESUME_JSON_SHAPE_GUIDE.replace("Return ONLY a JSON object with this exact shape:", "Schema for <ResumeData>:")}`;
 
   const payload = {
+    pageTarget,
     jobDescription,
-    baseResume,
+    sourceResume,
     workDataPool: poolEntries.map((e) => ({
       id: e.id,
       rawText: e.rawText,
@@ -321,9 +451,33 @@ ${RESUME_JSON_SHAPE_GUIDE.replace("Return ONLY a JSON object with this exact sha
     })),
   };
 
-  return callGeminiJson(
+  const result = await callGeminiJson(
     systemInstruction,
     JSON.stringify(payload, null, 2),
     TailoredResumeResponseSchema
   );
+
+  const validIds = new Set(poolEntries.map((e) => e.id));
+  const sanitizedEdits = result.analysis.suggestedEdits.map((edit) => ({
+    ...edit,
+    sourcePoolIds: sanitizePoolIds(edit.sourcePoolIds, validIds),
+    accepted: true,
+  }));
+
+  const usedFromEdits = sanitizedEdits.flatMap((e) => e.sourcePoolIds);
+  const usedPoolIds = sanitizePoolIds(
+    [...result.usedPoolIds, ...usedFromEdits],
+    validIds
+  );
+
+  return {
+    suggestedTitle: result.suggestedTitle,
+    data: result.data,
+    usedPoolIds,
+    analysis: {
+      ...result.analysis,
+      suggestedEdits: sanitizedEdits,
+      pageTarget,
+    },
+  };
 }

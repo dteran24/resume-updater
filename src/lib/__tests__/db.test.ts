@@ -9,6 +9,7 @@ import {
   deletePoolEntry,
   deleteResumeVersion,
   getBaseResume,
+  getLatestMasterResume,
   getPoolEntry,
   getResumeVersion,
   getSettingsStatus,
@@ -117,6 +118,25 @@ describe("SQLite db layer", () => {
     const patched = updatePoolEntry(entry.id, { occurredAt: "Q3 2026" });
     expect(patched?.occurredAt).toBe("Q3 2026");
 
+    const master = createResumeVersion({
+      kind: "master",
+      title: "Master Resume",
+      data: {
+        ...EMPTY_RESUME_DATA,
+        basics: { ...EMPTY_RESUME_DATA.basics, name: "Alex Rivera" },
+      },
+      usedPoolIds: [entry.id],
+      analysis: {
+        matchedKeywords: [],
+        missingKeywords: [],
+        tailoringNotes: ["Updated master"],
+        suggestedEdits: [],
+        coachingSuggestions: [],
+        pageTarget: "1-page",
+      },
+    });
+    expect(getLatestMasterResume()?.id).toBe(master.id);
+
     const version = createResumeVersion({
       kind: "tailored",
       title: "Acme — Platform Engineer",
@@ -131,13 +151,26 @@ describe("SQLite db layer", () => {
         matchedKeywords: ["TypeScript"],
         missingKeywords: ["Kubernetes"],
         tailoringNotes: ["Highlighted CI migration"],
+        suggestedEdits: [],
+        coachingSuggestions: [
+          {
+            kind: "jd-gap-question",
+            targetLabel: "Kubernetes",
+            message: "Have you worked with Kubernetes? Log it in Work Pool.",
+          },
+        ],
+        pageTarget: "1-page",
+        sourceResumeKind: "master",
       },
     });
 
-    expect(listResumeVersions()).toHaveLength(1);
+    expect(listResumeVersions()).toHaveLength(2);
     expect(getResumeVersion(version.id)?.analysis?.matchedKeywords).toEqual([
       "TypeScript",
     ]);
+    expect(
+      getResumeVersion(version.id)?.analysis?.coachingSuggestions
+    ).toHaveLength(1);
 
     const updatedVersion = updateResumeVersion(version.id, {
       title: "Acme — Staff Platform Engineer",
@@ -145,6 +178,7 @@ describe("SQLite db layer", () => {
     expect(updatedVersion?.title).toBe("Acme — Staff Platform Engineer");
 
     expect(deleteResumeVersion(version.id)).toBe(true);
+    expect(deleteResumeVersion(master.id)).toBe(true);
     expect(listResumeVersions()).toHaveLength(0);
 
     expect(deletePoolEntry(entry.id)).toBe(true);

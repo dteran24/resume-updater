@@ -14,6 +14,9 @@ const stringArray = () =>
     .optional()
     .transform((v) => (v ?? []).map((s) => s.trim()).filter(Boolean));
 
+export const PageTargetSchema = z.enum(["1-page", "2-page"]).default("1-page");
+export type PageTarget = z.infer<typeof PageTargetSchema>;
+
 export const ResumeBasicsSchema = z.object({
   name: nullableString(),
   title: nullableString(),
@@ -68,16 +71,70 @@ export const ResumeDataSchema = z.object({
     links: [],
     summary: "",
   }),
-  experience: z.array(ExperienceItemSchema).nullable().optional().transform((v) => v ?? []),
-  projects: z.array(ProjectItemSchema).nullable().optional().transform((v) => v ?? []),
-  education: z.array(EducationItemSchema).nullable().optional().transform((v) => v ?? []),
-  skills: z.array(SkillGroupSchema).nullable().optional().transform((v) => v ?? []),
+  experience: z
+    .array(ExperienceItemSchema)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? []),
+  projects: z
+    .array(ProjectItemSchema)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? []),
+  education: z
+    .array(EducationItemSchema)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? []),
+  skills: z
+    .array(SkillGroupSchema)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? []),
+});
+
+export const SuggestedEditSchema = z.object({
+  id: nullableString().transform((v) => v || crypto.randomUUID()),
+  section: z
+    .enum(["summary", "experience", "projects", "skills"])
+    .catch("experience"),
+  targetLabel: nullableString(),
+  action: z.enum(["add", "rewrite", "remove"]).catch("rewrite"),
+  before: nullableString(),
+  after: nullableString(),
+  reason: nullableString(),
+  sourcePoolIds: stringArray(),
+  accepted: z
+    .boolean()
+    .nullable()
+    .optional()
+    .transform((v) => v ?? true),
+});
+
+export const CoachingSuggestionSchema = z.object({
+  kind: z
+    .enum(["missing-metric", "jd-gap-question", "weak-bullet", "formatting"])
+    .catch("formatting"),
+  targetLabel: nullableString(),
+  message: nullableString(),
 });
 
 export const TailoringAnalysisSchema = z.object({
   matchedKeywords: stringArray(),
   missingKeywords: stringArray(),
   tailoringNotes: stringArray(),
+  suggestedEdits: z
+    .array(SuggestedEditSchema)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? []),
+  coachingSuggestions: z
+    .array(CoachingSuggestionSchema)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? []),
+  pageTarget: PageTargetSchema.optional(),
+  sourceResumeKind: z.enum(["master", "base"]).optional(),
 });
 
 export type ResumeBasics = z.infer<typeof ResumeBasicsSchema>;
@@ -86,6 +143,8 @@ export type ProjectItem = z.infer<typeof ProjectItemSchema>;
 export type EducationItem = z.infer<typeof EducationItemSchema>;
 export type SkillGroup = z.infer<typeof SkillGroupSchema>;
 export type ResumeData = z.infer<typeof ResumeDataSchema>;
+export type SuggestedEdit = z.infer<typeof SuggestedEditSchema>;
+export type CoachingSuggestion = z.infer<typeof CoachingSuggestionSchema>;
 export type TailoringAnalysis = z.infer<typeof TailoringAnalysisSchema>;
 
 export interface PoolEntry {
@@ -140,7 +199,9 @@ export const EMPTY_RESUME_DATA: ResumeData = {
   skills: [],
 };
 
-export function formatRoleLabel(exp: Pick<ExperienceItem, "role" | "company">): string {
+export function formatRoleLabel(
+  exp: Pick<ExperienceItem, "role" | "company">
+): string {
   const role = exp.role.trim();
   const company = exp.company.trim();
   if (role && company) return `${role} @ ${company}`;

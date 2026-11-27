@@ -5,13 +5,14 @@ import {
   getResumeVersion,
   updateResumeVersion,
 } from "@/lib/db";
-import { ResumeDataSchema } from "@/types/resume";
+import { ResumeDataSchema, TailoringAnalysisSchema } from "@/types/resume";
 
 export const runtime = "nodejs";
 
 const PatchVersionSchema = z.object({
   title: z.string().optional(),
   data: ResumeDataSchema.optional(),
+  analysis: TailoringAnalysisSchema.nullable().optional(),
 });
 
 export async function GET(

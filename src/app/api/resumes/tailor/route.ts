@@ -3,9 +3,11 @@ import { z } from "zod";
 import {
   createResumeVersion,
   getBaseResume,
+  getLatestMasterResume,
   listPoolEntries,
 } from "@/lib/db";
 import { tailorResumeToJobWithAI } from "@/lib/gemini";
+import { PageTargetSchema } from "@/types/resume";
 
 export const runtime = "nodejs";
 
@@ -15,20 +17,24 @@ const TailorSchema = z.object({
   jobDescription: z
     .string()
     .min(20, "Please provide a job description (at least 20 characters)."),
+  pageTarget: PageTargetSchema.optional().default("1-page"),
 });
 
 export async function POST(request: Request) {
   try {
     const body = TailorSchema.parse(await request.json());
+    const latestMaster = getLatestMasterResume();
     const base = getBaseResume();
+    const sourceResume = latestMaster ? latestMaster.data : base.data;
+    const sourceResumeKind: "master" | "base" = latestMaster ? "master" : "base";
     const pool = listPoolEntries();
 
-    const hasBaseContent =
-      Boolean(base.data.basics.name) ||
-      base.data.experience.length > 0 ||
-      base.data.projects.length > 0;
+    const hasSourceContent =
+      Boolean(sourceResume.basics.name) ||
+      sourceResume.experience.length > 0 ||
+      sourceResume.projects.length > 0;
 
-    if (!hasBaseContent && pool.length === 0) {
+    if (!hasSourceContent && pool.length === 0) {
       return NextResponse.json(
         {
           error:
@@ -39,9 +45,10 @@ export async function POST(request: Request) {
     }
 
     const result = await tailorResumeToJobWithAI(
-      base.data,
+      sourceResume,
       pool,
-      body.jobDescription
+      body.jobDescription,
+      body.pageTarget
     );
 
     const version = createResumeVersion({
@@ -51,7 +58,11 @@ export async function POST(request: Request) {
       jobDescription: body.jobDescription,
       data: result.data,
       usedPoolIds: result.usedPoolIds,
-      analysis: result.analysis,
+      analysis: {
+        ...result.analysis,
+        pageTarget: body.pageTarget,
+        sourceResumeKind,
+      },
     });
 
     return NextResponse.json({ version }, { status: 201 });

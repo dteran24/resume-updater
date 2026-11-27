@@ -1,15 +1,34 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import {
   createResumeVersion,
   getBaseResume,
   listPoolEntries,
 } from "@/lib/db";
 import { generateMasterResumeWithAI } from "@/lib/gemini";
+import { PageTargetSchema } from "@/types/resume";
 
 export const runtime = "nodejs";
 
-export async function POST() {
+const GenerateBodySchema = z
+  .object({
+    pageTarget: PageTargetSchema.optional(),
+  })
+  .optional();
+
+export async function POST(request: Request) {
   try {
+    let pageTarget: "1-page" | "2-page" = "1-page";
+    try {
+      const raw = await request.text();
+      if (raw.trim()) {
+        const parsed = GenerateBodySchema.parse(JSON.parse(raw));
+        if (parsed?.pageTarget) pageTarget = parsed.pageTarget;
+      }
+    } catch {
+      // default to 1-page if empty body
+    }
+
     const base = getBaseResume();
     const pool = listPoolEntries();
 
@@ -28,7 +47,7 @@ export async function POST() {
       );
     }
 
-    const result = await generateMasterResumeWithAI(base.data, pool);
+    const result = await generateMasterResumeWithAI(base.data, pool, pageTarget);
     const version = createResumeVersion({
       kind: "master",
       title: `Master Resume (${new Date().toLocaleDateString("en-US", {
@@ -37,7 +56,11 @@ export async function POST() {
       })})`,
       data: result.data,
       usedPoolIds: result.usedPoolIds,
-      analysis: result.analysis,
+      analysis: {
+        ...result.analysis,
+        pageTarget,
+        sourceResumeKind: "base",
+      },
     });
 
     return NextResponse.json({ version }, { status: 201 });
