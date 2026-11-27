@@ -29,7 +29,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<SettingsStatus | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState("");
-  const [modelInput, setModelInput] = useState("gemini-4-neon");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -40,7 +39,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (!res.ok) return;
       const data = (await res.json()) as SettingsStatus;
       setSettings(data);
-      setModelInput(data.model || "gemini-4-neon");
     } catch {
       // ignore initial fetch error
     }
@@ -62,7 +60,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           apiKey: apiKeyInput.trim() || undefined,
-          model: modelInput.trim() || "gemini-4-neon",
         }),
       });
       const json = await res.json();
@@ -87,7 +84,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const res = await fetch("/api/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clearApiKey: true, model: modelInput.trim() }),
+        body: JSON.stringify({ clearApiKey: true }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to clear API key");
@@ -179,7 +176,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="text-xs font-bold text-[#111827]">AI Settings</div>
                 <div className="font-mono-label text-[10px] text-[#6B7280] truncate">
                   {settings?.hasApiKey
-                    ? `${settings.model} (${settings.keySource})`
+                    ? `${settings.model} · ${settings.thinkingLevel}`
                     : "needs gemini key"}
                 </div>
               </div>
@@ -274,45 +271,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-[#111827] mb-1">
-                  Gemini Model
-                </label>
-                <select
-                  value={
-                    [
-                      "gemini-4-neon",
-                      "gemini-4-hydrogen",
-                      "gemini-4-carbon",
-                      "gemini-4-argon",
-                      "gemini-3.8-flash",
-                      "gemini-2.5-flash",
-                    ].includes(modelInput)
-                      ? modelInput
-                      : "custom"
-                  }
-                  onChange={(e) => {
-                    if (e.target.value !== "custom") setModelInput(e.target.value);
-                  }}
-                  className="ph-input px-3 py-2 text-sm mb-2"
-                >
-                  <option value="gemini-4-neon">
-                    gemini-4-neon — High Thinking (Default)
-                  </option>
-                  <option value="gemini-4-hydrogen">gemini-4-hydrogen</option>
-                  <option value="gemini-4-carbon">gemini-4-carbon</option>
-                  <option value="gemini-4-argon">gemini-4-argon</option>
-                  <option value="gemini-3.8-flash">gemini-3.8-flash</option>
-                  <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                  <option value="custom">Custom model name...</option>
-                </select>
-                <input
-                  type="text"
-                  value={modelInput}
-                  onChange={(e) => setModelInput(e.target.value)}
-                  placeholder="gemini-4-neon"
-                  className="ph-input font-mono-label px-3 py-1.5 text-xs"
-                />
+              <div className="flex items-center justify-between rounded-lg bg-[#F0FDFA] border border-[#CCFBF1] px-3 py-2 text-xs">
+                <span className="font-bold text-[#0F766E]">Engine</span>
+                <span className="font-mono-label text-[#0F766E]">
+                  {settings?.model ?? "gemini-4-neon"} · thinking:{" "}
+                  {settings?.thinkingLevel ?? "high"}
+                </span>
               </div>
 
               {saveMessage && (

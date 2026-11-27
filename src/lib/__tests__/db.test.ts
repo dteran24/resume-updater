@@ -41,13 +41,13 @@ describe("SQLite db layer", () => {
   it("manages settings and masks stored API keys", () => {
     expect(getSettingsStatus().hasApiKey).toBe(false);
     setSetting("gemini_api_key", "AIzaSyTestKey123456");
-    setSetting("gemini_model", "gemini-2.5-pro");
 
     const status = getSettingsStatus();
     expect(status.hasApiKey).toBe(true);
     expect(status.keySource).toBe("settings");
     expect(status.maskedKey).toBe("AIza••••3456");
-    expect(status.model).toBe("gemini-2.5-pro");
+    expect(status.model).toBe("gemini-4-neon");
+    expect(status.thinkingLevel).toBe("high");
 
     setSetting("gemini_api_key", null);
     expect(getSettingsStatus().hasApiKey).toBe(false);

@@ -121,6 +121,7 @@ export interface SettingsStatus {
   keySource: "settings" | "env" | "none";
   maskedKey: string;
   model: string;
+  thinkingLevel: string;
 }
 
 export const EMPTY_RESUME_DATA: ResumeData = {

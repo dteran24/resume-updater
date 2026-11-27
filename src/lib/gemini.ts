@@ -1,6 +1,6 @@
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { z } from "zod";
-import { getSetting } from "@/lib/db";
+import { FIXED_GEMINI_MODEL, getSetting } from "@/lib/db";
 import {
   PoolEntry,
   ResumeData,
@@ -10,9 +10,7 @@ import {
   formatRoleLabel,
 } from "@/types/resume";
 
-const DEFAULT_MODEL = "gemini-4-neon";
-
-function getGeminiConfig(): { apiKey: string; model: string } {
+function getGeminiApiKey(): string {
   const apiKey =
     getSetting("gemini_api_key") || process.env.GEMINI_API_KEY?.trim() || "";
   if (!apiKey) {
@@ -20,11 +18,7 @@ function getGeminiConfig(): { apiKey: string; model: string } {
       "Gemini API key is not configured. Add it in Settings or set GEMINI_API_KEY in .env.local."
     );
   }
-  const model =
-    getSetting("gemini_model") ||
-    process.env.GEMINI_MODEL?.trim() ||
-    DEFAULT_MODEL;
-  return { apiKey, model };
+  return apiKey;
 }
 
 function stripJsonFences(raw: string): string {
@@ -38,26 +32,18 @@ async function callGeminiJson<T>(
   userPrompt: string,
   schema: z.ZodType<T, z.ZodTypeDef, unknown>
 ): Promise<T> {
-  const { apiKey, model } = getGeminiConfig();
+  const apiKey = getGeminiApiKey();
   const ai = new GoogleGenAI({ apiKey });
 
-  const isGemini4Or3 = model.startsWith("gemini-4") || model.startsWith("gemini-3");
-
   const response = await ai.models.generateContent({
-    model,
+    model: FIXED_GEMINI_MODEL,
     contents: userPrompt,
     config: {
       systemInstruction,
       responseMimeType: "application/json",
-      ...(isGemini4Or3
-        ? {
-            thinkingConfig: {
-              thinkingLevel: ThinkingLevel.HIGH,
-            },
-          }
-        : {
-            temperature: 0.2,
-          }),
+      thinkingConfig: {
+        thinkingLevel: ThinkingLevel.HIGH,
+      },
     },
   });
 

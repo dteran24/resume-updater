@@ -7,7 +7,6 @@ export const runtime = "nodejs";
 const UpdateSettingsSchema = z.object({
   apiKey: z.string().optional(),
   clearApiKey: z.boolean().optional(),
-  model: z.string().optional(),
 });
 
 export async function GET() {
@@ -22,10 +21,6 @@ export async function PUT(request: Request) {
       setSetting("gemini_api_key", null);
     } else if (body.apiKey !== undefined && body.apiKey.trim() !== "") {
       setSetting("gemini_api_key", body.apiKey.trim());
-    }
-
-    if (body.model !== undefined) {
-      setSetting("gemini_model", body.model.trim() || null);
     }
 
     return NextResponse.json(getSettingsStatus());

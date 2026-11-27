@@ -13,7 +13,8 @@ import {
   formatRoleLabel,
 } from "@/types/resume";
 
-const DEFAULT_MODEL = "gemini-4-neon";
+export const FIXED_GEMINI_MODEL = "gemini-4-neon";
+export const FIXED_THINKING_LEVEL = "high";
 
 interface GlobalWithDb {
   __resumeUpdaterDb?: {
@@ -147,8 +148,6 @@ function maskApiKey(key: string): string {
 export function getSettingsStatus(): SettingsStatus {
   const storedKey = getSetting("gemini_api_key");
   const envKey = process.env.GEMINI_API_KEY?.trim() || "";
-  const storedModel = getSetting("gemini_model");
-  const envModel = process.env.GEMINI_MODEL?.trim() || "";
 
   const activeKey = storedKey || envKey;
   const keySource: SettingsStatus["keySource"] = storedKey
@@ -161,7 +160,8 @@ export function getSettingsStatus(): SettingsStatus {
     hasApiKey: Boolean(activeKey),
     keySource,
     maskedKey: activeKey ? maskApiKey(activeKey) : "",
-    model: storedModel || envModel || DEFAULT_MODEL,
+    model: FIXED_GEMINI_MODEL,
+    thinkingLevel: FIXED_THINKING_LEVEL,
   };
 }
 
