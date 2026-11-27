@@ -15,6 +15,7 @@ import {
 
 export const FIXED_GEMINI_MODEL = "gemini-4-neon";
 export const FIXED_THINKING_LEVEL = "high";
+export const DEFAULT_USER_ID = "local-user";
 
 interface GlobalWithDb {
   __resumeUpdaterDb?: {
@@ -32,6 +33,13 @@ export function getDbPath(): string {
   );
 }
 
+function hasColumn(db: DatabaseSync, table: string, column: string): boolean {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+    name: string;
+  }>;
+  return rows.some((r) => r.name === column);
+}
+
 function initSchema(db: DatabaseSync): void {
   db.exec(`
     PRAGMA journal_mode = WAL;
@@ -42,7 +50,7 @@ function initSchema(db: DatabaseSync): void {
     );
 
     CREATE TABLE IF NOT EXISTS base_resume (
-      id INTEGER PRIMARY KEY CHECK (id = 1),
+      user_id TEXT PRIMARY KEY,
       data_json TEXT NOT NULL,
       raw_source TEXT,
       updated_at TEXT NOT NULL
@@ -50,6 +58,7 @@ function initSchema(db: DatabaseSync): void {
 
     CREATE TABLE IF NOT EXISTS pool_entries (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'local-user',
       raw_text TEXT NOT NULL,
       company_hint TEXT,
       role_hint TEXT,
@@ -65,6 +74,7 @@ function initSchema(db: DatabaseSync): void {
 
     CREATE TABLE IF NOT EXISTS resume_versions (
       id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL DEFAULT 'local-user',
       kind TEXT NOT NULL,
       title TEXT NOT NULL,
       job_url TEXT,
@@ -75,6 +85,55 @@ function initSchema(db: DatabaseSync): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS ai_usage_log (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      ip_hash TEXT NOT NULL,
+      action TEXT NOT NULL,
+      prompt_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      thought_tokens INTEGER NOT NULL DEFAULT 0,
+      total_tokens INTEGER NOT NULL DEFAULT 0,
+      estimated_cost_usd REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  // Non-destructive migration for pre-multi-user local DBs
+  if (!hasColumn(db, "base_resume", "user_id")) {
+    db.exec(`
+      ALTER TABLE base_resume RENAME TO base_resume_legacy;
+      CREATE TABLE base_resume (
+        user_id TEXT PRIMARY KEY,
+        data_json TEXT NOT NULL,
+        raw_source TEXT,
+        updated_at TEXT NOT NULL
+      );
+      INSERT INTO base_resume (user_id, data_json, raw_source, updated_at)
+      SELECT 'local-user', data_json, raw_source, updated_at FROM base_resume_legacy;
+      DROP TABLE base_resume_legacy;
+    `);
+  }
+
+  if (!hasColumn(db, "pool_entries", "user_id")) {
+    db.exec(
+      `ALTER TABLE pool_entries ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local-user';`
+    );
+  }
+
+  if (!hasColumn(db, "resume_versions", "user_id")) {
+    db.exec(
+      `ALTER TABLE resume_versions ADD COLUMN user_id TEXT NOT NULL DEFAULT 'local-user';`
+    );
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_pool_user_created ON pool_entries (user_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_versions_user_updated ON resume_versions (user_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_usage_created ON ai_usage_log (created_at);
+    CREATE INDEX IF NOT EXISTS idx_usage_user_action ON ai_usage_log (user_id, action, created_at);
+    CREATE INDEX IF NOT EXISTS idx_usage_ip_action ON ai_usage_log (ip_hash, action, created_at);
   `);
 }
 
@@ -145,8 +204,18 @@ function maskApiKey(key: string): string {
   return `${key.slice(0, 4)}••••${key.slice(-4)}`;
 }
 
-export function getSettingsStatus(): SettingsStatus {
-  const storedKey = getSetting("gemini_api_key");
+export function getSettingsStatus(
+  opts?: {
+    publicMode?: boolean;
+    authRequired?: boolean;
+    user?: SettingsStatus["user"];
+    quotas?: SettingsStatus["quotas"];
+  }
+): SettingsStatus {
+  const publicMode =
+    opts?.publicMode ??
+    (process.env.PUBLIC_MODE === "true" || process.env.NODE_ENV === "production");
+  const storedKey = publicMode ? null : getSetting("gemini_api_key");
   const envKey = process.env.GEMINI_API_KEY?.trim() || "";
 
   const activeKey = storedKey || envKey;
@@ -159,9 +228,13 @@ export function getSettingsStatus(): SettingsStatus {
   return {
     hasApiKey: Boolean(activeKey),
     keySource,
-    maskedKey: activeKey ? maskApiKey(activeKey) : "",
+    maskedKey: publicMode ? "" : activeKey ? maskApiKey(activeKey) : "",
     model: FIXED_GEMINI_MODEL,
     thinkingLevel: FIXED_THINKING_LEVEL,
+    publicMode,
+    authRequired: opts?.authRequired ?? publicMode,
+    user: opts?.user ?? null,
+    quotas: opts?.quotas ?? null,
   };
 }
 
@@ -173,11 +246,13 @@ export interface BaseResumeRecord {
   updatedAt: string | null;
 }
 
-export function getBaseResume(): BaseResumeRecord {
+export function getBaseResume(userId = DEFAULT_USER_ID): BaseResumeRecord {
   const db = getDb();
   const row = db
-    .prepare("SELECT data_json, raw_source, updated_at FROM base_resume WHERE id = 1")
-    .get() as
+    .prepare(
+      "SELECT data_json, raw_source, updated_at FROM base_resume WHERE user_id = ?"
+    )
+    .get(userId) as
     | { data_json: string; raw_source: string | null; updated_at: string }
     | undefined;
 
@@ -201,22 +276,23 @@ export function getBaseResume(): BaseResumeRecord {
 
 export function saveBaseResume(
   data: ResumeData,
-  rawSource?: string
+  rawSource?: string,
+  userId = DEFAULT_USER_ID
 ): BaseResumeRecord {
   const db = getDb();
-  const existing = getBaseResume();
+  const existing = getBaseResume(userId);
   const normalized = ResumeDataSchema.parse(data);
   const now = new Date().toISOString();
   const sourceToStore = rawSource !== undefined ? rawSource : existing.rawSource;
 
   db.prepare(
-    `INSERT INTO base_resume (id, data_json, raw_source, updated_at)
-     VALUES (1, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
+    `INSERT INTO base_resume (user_id, data_json, raw_source, updated_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
        data_json = excluded.data_json,
        raw_source = excluded.raw_source,
        updated_at = excluded.updated_at`
-  ).run(JSON.stringify(normalized), sourceToStore, now);
+  ).run(userId, JSON.stringify(normalized), sourceToStore, now);
 
   return {
     data: normalized,
@@ -225,16 +301,19 @@ export function saveBaseResume(
   };
 }
 
-export function addRoleToBaseResume(input: {
-  company: string;
-  role: string;
-  startDate?: string;
-  endDate?: string;
-  location?: string;
-  bullets?: string[];
-  poolEntryId?: string;
-}): BaseResumeRecord {
-  const current = getBaseResume();
+export function addRoleToBaseResume(
+  input: {
+    company: string;
+    role: string;
+    startDate?: string;
+    endDate?: string;
+    location?: string;
+    bullets?: string[];
+    poolEntryId?: string;
+  },
+  userId = DEFAULT_USER_ID
+): BaseResumeRecord {
+  const current = getBaseResume(userId);
   const company = input.company.trim();
   const role = input.role.trim();
 
@@ -259,19 +338,27 @@ export function addRoleToBaseResume(input: {
         ...current.data.experience,
       ];
 
-  const saved = saveBaseResume({
-    ...current.data,
-    experience: nextExperience,
-  });
+  const saved = saveBaseResume(
+    {
+      ...current.data,
+      experience: nextExperience,
+    },
+    undefined,
+    userId
+  );
 
   if (input.poolEntryId) {
     const label = formatRoleLabel({ company, role });
-    updatePoolEntry(input.poolEntryId, {
-      isNewRole: false,
-      matchedRole: label,
-      companyHint: company,
-      roleHint: role,
-    });
+    updatePoolEntry(
+      input.poolEntryId,
+      {
+        isNewRole: false,
+        matchedRole: label,
+        companyHint: company,
+        roleHint: role,
+      },
+      userId
+    );
   }
 
   return saved;
@@ -281,6 +368,7 @@ export function addRoleToBaseResume(input: {
 
 interface PoolRow {
   id: string;
+  user_id: string;
   raw_text: string;
   company_hint: string | null;
   role_hint: string | null;
@@ -311,19 +399,22 @@ function rowToPoolEntry(row: PoolRow): PoolEntry {
   };
 }
 
-export function listPoolEntries(): PoolEntry[] {
+export function listPoolEntries(userId = DEFAULT_USER_ID): PoolEntry[] {
   const db = getDb();
   const rows = db
-    .prepare("SELECT * FROM pool_entries ORDER BY created_at DESC")
-    .all() as unknown as PoolRow[];
+    .prepare("SELECT * FROM pool_entries WHERE user_id = ? ORDER BY created_at DESC")
+    .all(userId) as unknown as PoolRow[];
   return rows.map(rowToPoolEntry);
 }
 
-export function getPoolEntry(id: string): PoolEntry | null {
+export function getPoolEntry(
+  id: string,
+  userId = DEFAULT_USER_ID
+): PoolEntry | null {
   const db = getDb();
   const row = db
-    .prepare("SELECT * FROM pool_entries WHERE id = ?")
-    .get(id) as PoolRow | undefined;
+    .prepare("SELECT * FROM pool_entries WHERE id = ? AND user_id = ?")
+    .get(id, userId) as PoolRow | undefined;
   return row ? rowToPoolEntry(row) : null;
 }
 
@@ -340,7 +431,10 @@ export interface CreatePoolEntryInput {
   metrics?: string[];
 }
 
-export function createPoolEntry(input: CreatePoolEntryInput): PoolEntry {
+export function createPoolEntry(
+  input: CreatePoolEntryInput,
+  userId = DEFAULT_USER_ID
+): PoolEntry {
   const db = getDb();
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
@@ -361,12 +455,13 @@ export function createPoolEntry(input: CreatePoolEntryInput): PoolEntry {
 
   db.prepare(
     `INSERT INTO pool_entries (
-      id, raw_text, company_hint, role_hint, occurred_at,
+      id, user_id, raw_text, company_hint, role_hint, occurred_at,
       tags_json, matched_role, is_new_role, suggested_company, suggested_role,
       metrics_json, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     entry.id,
+    userId,
     entry.rawText,
     entry.companyHint,
     entry.roleHint,
@@ -387,9 +482,10 @@ export type UpdatePoolEntryInput = Partial<CreatePoolEntryInput>;
 
 export function updatePoolEntry(
   id: string,
-  patch: UpdatePoolEntryInput
+  patch: UpdatePoolEntryInput,
+  userId = DEFAULT_USER_ID
 ): PoolEntry | null {
-  const existing = getPoolEntry(id);
+  const existing = getPoolEntry(id, userId);
   if (!existing) return null;
 
   const updated: PoolEntry = {
@@ -428,7 +524,7 @@ export function updatePoolEntry(
       suggested_company = ?,
       suggested_role = ?,
       metrics_json = ?
-     WHERE id = ?`
+     WHERE id = ? AND user_id = ?`
   ).run(
     updated.rawText,
     updated.companyHint,
@@ -440,15 +536,18 @@ export function updatePoolEntry(
     updated.suggestedCompany,
     updated.suggestedRole,
     JSON.stringify(updated.metrics),
-    id
+    id,
+    userId
   );
 
   return updated;
 }
 
-export function deletePoolEntry(id: string): boolean {
+export function deletePoolEntry(id: string, userId = DEFAULT_USER_ID): boolean {
   const db = getDb();
-  const result = db.prepare("DELETE FROM pool_entries WHERE id = ?").run(id);
+  const result = db
+    .prepare("DELETE FROM pool_entries WHERE id = ? AND user_id = ?")
+    .run(id, userId);
   return Number(result.changes) > 0;
 }
 
@@ -456,6 +555,7 @@ export function deletePoolEntry(id: string): boolean {
 
 interface VersionRow {
   id: string;
+  user_id: string;
   kind: string;
   title: string;
   job_url: string | null;
@@ -489,29 +589,34 @@ function rowToVersion(row: VersionRow): ResumeVersion {
   };
 }
 
-export function listResumeVersions(): ResumeVersion[] {
+export function listResumeVersions(userId = DEFAULT_USER_ID): ResumeVersion[] {
   const db = getDb();
   const rows = db
-    .prepare("SELECT * FROM resume_versions ORDER BY updated_at DESC")
-    .all() as unknown as VersionRow[];
+    .prepare("SELECT * FROM resume_versions WHERE user_id = ? ORDER BY updated_at DESC")
+    .all(userId) as unknown as VersionRow[];
   return rows.map(rowToVersion);
 }
 
-export function getLatestMasterResume(): ResumeVersion | null {
+export function getLatestMasterResume(
+  userId = DEFAULT_USER_ID
+): ResumeVersion | null {
   const db = getDb();
   const row = db
     .prepare(
-      "SELECT * FROM resume_versions WHERE kind = 'master' ORDER BY updated_at DESC LIMIT 1"
+      "SELECT * FROM resume_versions WHERE user_id = ? AND kind = 'master' ORDER BY updated_at DESC LIMIT 1"
     )
-    .get() as VersionRow | undefined;
+    .get(userId) as VersionRow | undefined;
   return row ? rowToVersion(row) : null;
 }
 
-export function getResumeVersion(id: string): ResumeVersion | null {
+export function getResumeVersion(
+  id: string,
+  userId = DEFAULT_USER_ID
+): ResumeVersion | null {
   const db = getDb();
   const row = db
-    .prepare("SELECT * FROM resume_versions WHERE id = ?")
-    .get(id) as VersionRow | undefined;
+    .prepare("SELECT * FROM resume_versions WHERE id = ? AND user_id = ?")
+    .get(id, userId) as VersionRow | undefined;
   return row ? rowToVersion(row) : null;
 }
 
@@ -525,7 +630,10 @@ export interface CreateResumeVersionInput {
   analysis?: TailoringAnalysis | null;
 }
 
-export function createResumeVersion(input: CreateResumeVersionInput): ResumeVersion {
+export function createResumeVersion(
+  input: CreateResumeVersionInput,
+  userId = DEFAULT_USER_ID
+): ResumeVersion {
   const db = getDb();
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -533,7 +641,9 @@ export function createResumeVersion(input: CreateResumeVersionInput): ResumeVers
   const version: ResumeVersion = {
     id,
     kind: input.kind,
-    title: input.title.trim() || (input.kind === "master" ? "Master Resume" : "Tailored Resume"),
+    title:
+      input.title.trim() ||
+      (input.kind === "master" ? "Master Resume" : "Tailored Resume"),
     jobUrl: input.jobUrl?.trim() ?? "",
     jobDescription: input.jobDescription?.trim() ?? "",
     data: normalizedData,
@@ -545,11 +655,12 @@ export function createResumeVersion(input: CreateResumeVersionInput): ResumeVers
 
   db.prepare(
     `INSERT INTO resume_versions (
-      id, kind, title, job_url, job_description, data_json,
+      id, user_id, kind, title, job_url, job_description, data_json,
       used_pool_ids_json, analysis_json, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     version.id,
+    userId,
     version.kind,
     version.title,
     version.jobUrl,
@@ -566,9 +677,10 @@ export function createResumeVersion(input: CreateResumeVersionInput): ResumeVers
 
 export function updateResumeVersion(
   id: string,
-  patch: { title?: string; data?: ResumeData; analysis?: TailoringAnalysis | null }
+  patch: { title?: string; data?: ResumeData; analysis?: TailoringAnalysis | null },
+  userId = DEFAULT_USER_ID
 ): ResumeVersion | null {
-  const existing = getResumeVersion(id);
+  const existing = getResumeVersion(id, userId);
   if (!existing) return null;
 
   const now = new Date().toISOString();
@@ -584,13 +696,14 @@ export function updateResumeVersion(
 
   const db = getDb();
   db.prepare(
-    "UPDATE resume_versions SET title = ?, data_json = ?, analysis_json = ?, updated_at = ? WHERE id = ?"
+    "UPDATE resume_versions SET title = ?, data_json = ?, analysis_json = ?, updated_at = ? WHERE id = ? AND user_id = ?"
   ).run(
     updatedTitle,
     JSON.stringify(updatedData),
     updatedAnalysis ? JSON.stringify(updatedAnalysis) : null,
     now,
-    id
+    id,
+    userId
   );
 
   return {
@@ -602,8 +715,102 @@ export function updateResumeVersion(
   };
 }
 
-export function deleteResumeVersion(id: string): boolean {
+export function deleteResumeVersion(
+  id: string,
+  userId = DEFAULT_USER_ID
+): boolean {
   const db = getDb();
-  const result = db.prepare("DELETE FROM resume_versions WHERE id = ?").run(id);
+  const result = db
+    .prepare("DELETE FROM resume_versions WHERE id = ? AND user_id = ?")
+    .run(id, userId);
   return Number(result.changes) > 0;
+}
+
+// --- AI Usage & Cost Ledger ---
+
+export interface AiUsageRecordInput {
+  userId: string;
+  ipHash: string;
+  action: string;
+  promptTokens: number;
+  outputTokens: number;
+  thoughtTokens: number;
+  totalTokens: number;
+  estimatedCostUsd: number;
+}
+
+export function recordAiUsage(input: AiUsageRecordInput): void {
+  const db = getDb();
+  db.prepare(
+    `INSERT INTO ai_usage_log (
+      id, user_id, ip_hash, action,
+      prompt_tokens, output_tokens, thought_tokens, total_tokens,
+      estimated_cost_usd, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    crypto.randomUUID(),
+    input.userId,
+    input.ipHash,
+    input.action,
+    input.promptTokens,
+    input.outputTokens,
+    input.thoughtTokens,
+    input.totalTokens,
+    input.estimatedCostUsd,
+    new Date().toISOString()
+  );
+}
+
+function startOfUtcDayIso(): string {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  ).toISOString();
+}
+
+function startOfUtcMonthIso(): string {
+  const now = new Date();
+  return new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)
+  ).toISOString();
+}
+
+export function getUserDailyActionCount(userId: string, action: string): number {
+  const db = getDb();
+  const row = db
+    .prepare(
+      "SELECT COUNT(*) AS cnt FROM ai_usage_log WHERE user_id = ? AND action = ? AND created_at >= ?"
+    )
+    .get(userId, action, startOfUtcDayIso()) as { cnt: number };
+  return Number(row?.cnt ?? 0);
+}
+
+export function getIpDailyActionCount(ipHash: string, action: string): number {
+  const db = getDb();
+  const row = db
+    .prepare(
+      "SELECT COUNT(*) AS cnt FROM ai_usage_log WHERE ip_hash = ? AND action = ? AND created_at >= ?"
+    )
+    .get(ipHash, action, startOfUtcDayIso()) as { cnt: number };
+  return Number(row?.cnt ?? 0);
+}
+
+export function getGlobalDailySpendUsd(): number {
+  const db = getDb();
+  const row = db
+    .prepare(
+      "SELECT COALESCE(SUM(estimated_cost_usd), 0) AS total FROM ai_usage_log WHERE created_at >= ?"
+    )
+    .get(startOfUtcDayIso()) as { total: number };
+  return Number(row?.total ?? 0);
+}
+
+export function getGlobalMonthlySpendUsd(): number {
+  const db = getDb();
+  const row = db
+    .prepare(
+      "SELECT COALESCE(SUM(estimated_cost_usd), 0) AS total FROM ai_usage_log WHERE created_at >= ?"
+    )
+    .get(startOfUtcMonthIso()) as { total: number };
+  return Number(row?.total ?? 0);
 }

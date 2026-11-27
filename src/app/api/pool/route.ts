@@ -1,5 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireUser } from "@/auth";
+import {
+  GuardError,
+  acquireAiGuard,
+  hashClientIp,
+  logCompletedAiAction,
+} from "@/lib/ai-guard";
+import { handleApiError } from "@/lib/api-error";
 import {
   createPoolEntry,
   getBaseResume,
@@ -12,22 +20,32 @@ import { formatRoleLabel } from "@/types/resume";
 export const runtime = "nodejs";
 
 const CreatePoolSchema = z.object({
-  rawText: z.string().min(1, "Please enter what you worked on."),
-  companyHint: z.string().optional().default(""),
-  roleHint: z.string().optional().default(""),
-  occurredAt: z.string().optional().default(""),
-  matchedRole: z.string().optional().default(""),
+  rawText: z
+    .string()
+    .min(1, "Please enter what you worked on.")
+    .max(1500, "Work pool note must be 1,500 characters or fewer."),
+  companyHint: z.string().max(120).optional().default(""),
+  roleHint: z.string().max(120).optional().default(""),
+  occurredAt: z.string().max(60).optional().default(""),
+  matchedRole: z.string().max(200).optional().default(""),
   isUnlistedRole: z.boolean().optional().default(false),
 });
 
 export async function GET() {
-  return NextResponse.json({ entries: listPoolEntries() });
+  try {
+    const user = await requireUser();
+    return NextResponse.json({ entries: listPoolEntries(user.id) });
+  } catch (error) {
+    return handleApiError(error, "Failed to load work data pool.");
+  }
 }
 
 export async function POST(request: Request) {
   try {
+    const user = await requireUser();
+    const ipHash = hashClientIp(request);
     const body = CreatePoolSchema.parse(await request.json());
-    const base = getBaseResume();
+    const base = getBaseResume(user.id);
     const existingRoles = base.data.experience.map(formatRoleLabel);
 
     let tags: string[] = [];
@@ -52,12 +70,20 @@ export async function POST(request: Request) {
 
     const settings = getSettingsStatus();
     if (settings.hasApiKey) {
+      let release: (() => void) | null = null;
       try {
-        const aiResult = await autoTagPoolEntryWithAI(body.rawText, existingRoles, {
-          companyHint: body.companyHint,
-          roleHint: body.roleHint,
-          occurredAt: body.occurredAt,
-        });
+        release = acquireAiGuard(user.id, ipHash, "pool-tag");
+        const { result: aiResult, usage } = await autoTagPoolEntryWithAI(
+          body.rawText,
+          existingRoles,
+          {
+            companyHint: body.companyHint,
+            roleHint: body.roleHint,
+            occurredAt: body.occurredAt,
+          }
+        );
+        logCompletedAiAction(user.id, ipHash, "pool-tag", usage);
+
         tags = aiResult.tags;
         metrics = aiResult.metrics;
 
@@ -71,9 +97,11 @@ export async function POST(request: Request) {
         }
       } catch (err) {
         aiWarning =
-          err instanceof Error
+          err instanceof GuardError
             ? `Saved without AI auto-tagging: ${err.message}`
             : "Saved without AI auto-tagging.";
+      } finally {
+        release?.();
       }
     }
 
@@ -84,22 +112,24 @@ export async function POST(request: Request) {
       });
     }
 
-    const entry = createPoolEntry({
-      rawText: body.rawText,
-      companyHint: body.companyHint,
-      roleHint: body.roleHint,
-      occurredAt: body.occurredAt,
-      tags,
-      matchedRole,
-      isNewRole,
-      suggestedCompany,
-      suggestedRole,
-      metrics,
-    });
+    const entry = createPoolEntry(
+      {
+        rawText: body.rawText,
+        companyHint: body.companyHint,
+        roleHint: body.roleHint,
+        occurredAt: body.occurredAt,
+        tags,
+        matchedRole,
+        isNewRole,
+        suggestedCompany,
+        suggestedRole,
+        metrics,
+      },
+      user.id
+    );
 
     return NextResponse.json({ entry, aiWarning }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Invalid pool entry";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return handleApiError(error, "Failed to save work pool entry.");
   }
 }

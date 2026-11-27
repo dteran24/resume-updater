@@ -142,11 +142,11 @@ export default function SavedVersionsPage() {
                     {v.title}
                   </h2>
 
-                  {v.jobUrl && (
+                  {v.jobUrl && /^https?:\/\//i.test(v.jobUrl) && (
                     <a
                       href={v.jobUrl}
                       target="_blank"
-                      rel="noreferrer"
+                      rel="noopener noreferrer"
                       className="font-mono-label inline-flex items-center gap-1 text-xs text-[#0D9488] hover:underline break-all"
                     >
                       <ExternalLink className="w-3 h-3 shrink-0" />

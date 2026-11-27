@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireUser } from "@/auth";
+import {
+  acquireAiGuard,
+  hashClientIp,
+  logCompletedAiAction,
+} from "@/lib/ai-guard";
+import { handleApiError } from "@/lib/api-error";
 import {
   createResumeVersion,
   getBaseResume,
@@ -17,7 +24,11 @@ const GenerateBodySchema = z
   .optional();
 
 export async function POST(request: Request) {
+  let release: (() => void) | null = null;
   try {
+    const user = await requireUser();
+    const ipHash = hashClientIp(request);
+
     let pageTarget: "1-page" | "2-page" = "1-page";
     try {
       const raw = await request.text();
@@ -29,8 +40,8 @@ export async function POST(request: Request) {
       // default to 1-page if empty body
     }
 
-    const base = getBaseResume();
-    const pool = listPoolEntries();
+    const base = getBaseResume(user.id);
+    const pool = listPoolEntries(user.id);
 
     const hasBaseContent =
       Boolean(base.data.basics.name) ||
@@ -47,26 +58,32 @@ export async function POST(request: Request) {
       );
     }
 
+    release = acquireAiGuard(user.id, ipHash, "generate");
     const result = await generateMasterResumeWithAI(base.data, pool, pageTarget);
-    const version = createResumeVersion({
-      kind: "master",
-      title: `Master Resume (${new Date().toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      })})`,
-      data: result.data,
-      usedPoolIds: result.usedPoolIds,
-      analysis: {
-        ...result.analysis,
-        pageTarget,
-        sourceResumeKind: "base",
+    logCompletedAiAction(user.id, ipHash, "generate", result.usage);
+
+    const version = createResumeVersion(
+      {
+        kind: "master",
+        title: `Master Resume (${new Date().toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        })})`,
+        data: result.data,
+        usedPoolIds: result.usedPoolIds,
+        analysis: {
+          ...result.analysis,
+          pageTarget,
+          sourceResumeKind: "base",
+        },
       },
-    });
+      user.id
+    );
 
     return NextResponse.json({ version }, { status: 201 });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Generation failed";
-    const status = message.includes("API key") ? 400 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return handleApiError(error, "Master resume generation failed.");
+  } finally {
+    release?.();
   }
 }

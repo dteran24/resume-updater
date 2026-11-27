@@ -1,12 +1,26 @@
 import { NextResponse } from "next/server";
+import { requireUser } from "@/auth";
+import {
+  acquireAiGuard,
+  hashClientIp,
+  logCompletedAiAction,
+} from "@/lib/ai-guard";
+import { handleApiError } from "@/lib/api-error";
 import { saveBaseResume } from "@/lib/db";
 import { extractTextFromFile } from "@/lib/file-parser";
 import { parseResumeWithAI } from "@/lib/gemini";
 
 export const runtime = "nodejs";
 
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024; // 2 MB
+const MAX_RESUME_CHARS = 25000;
+
 export async function POST(request: Request) {
+  let release: (() => void) | null = null;
   try {
+    const user = await requireUser();
+    const ipHash = hashClientIp(request);
+
     const contentType = request.headers.get("content-type") || "";
     let rawText = "";
 
@@ -17,6 +31,12 @@ export async function POST(request: Request) {
         return NextResponse.json(
           { error: "Please select a resume file to upload." },
           { status: 400 }
+        );
+      }
+      if (file.size > MAX_UPLOAD_BYTES) {
+        return NextResponse.json(
+          { error: "Resume file is too large (max 2 MB)." },
+          { status: 413 }
         );
       }
       const buffer = Buffer.from(await file.arrayBuffer());
@@ -32,12 +52,19 @@ export async function POST(request: Request) {
       }
     }
 
-    const parsedData = await parseResumeWithAI(rawText);
-    const saved = saveBaseResume(parsedData, rawText);
+    if (rawText.length > MAX_RESUME_CHARS) {
+      rawText = rawText.slice(0, MAX_RESUME_CHARS);
+    }
+
+    release = acquireAiGuard(user.id, ipHash, "import");
+    const { data: parsedData, usage } = await parseResumeWithAI(rawText);
+    logCompletedAiAction(user.id, ipHash, "import", usage);
+
+    const saved = saveBaseResume(parsedData, rawText, user.id);
     return NextResponse.json(saved);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Failed to import resume";
-    const status = message.includes("API key") ? 400 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return handleApiError(error, "Failed to import resume.");
+  } finally {
+    release?.();
   }
 }

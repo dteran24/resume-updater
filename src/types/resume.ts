@@ -175,12 +175,31 @@ export interface ResumeVersion {
   updatedAt: string;
 }
 
+export interface QuotaSummary {
+  dailyLimits: {
+    import: { used: number; limit: number };
+    poolTag: { used: number; limit: number };
+    generate: { used: number; limit: number };
+    tailor: { used: number; limit: number };
+  };
+  globalBudgetPaused: boolean;
+}
+
 export interface SettingsStatus {
   hasApiKey: boolean;
   keySource: "settings" | "env" | "none";
   maskedKey: string;
   model: string;
   thinkingLevel: string;
+  publicMode: boolean;
+  authRequired: boolean;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    isLocalFallback: boolean;
+  } | null;
+  quotas: QuotaSummary | null;
 }
 
 export const EMPTY_RESUME_DATA: ResumeData = {
